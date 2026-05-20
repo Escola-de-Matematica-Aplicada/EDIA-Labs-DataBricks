@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>LAB 3 — SQL Avançado e Preparação de Dados para Modelos de IA</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; line-height: 1.6; color: #333; }
+  h1 { color: #1a5276; border-bottom: 2px solid #1a5276; padding-bottom: 8px; }
+  h2 { color: #2874a6; margin-top: 32px; }
+  h3 { color: #2e86c1; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+  th, td { border: 1px solid #bbb; padding: 10px; text-align: left; }
+  th { background: #eaf2f8; }
+  tr:nth-child(even) { background: #f8f9f9; }
+  blockquote { border-left: 4px solid #1a5276; margin: 16px 0; padding: 12px 20px; background: #f4f6f7; font-style: italic; }
+  code { background: #f4f6f7; padding: 2px 6px; border-radius: 4px; }
+  pre { background: #f4f6f7; padding: 12px; border-radius: 6px; overflow-x: auto; }
+  ul { margin: 8px 0; }
+  .meta { color: #555; font-size: 0.95em; margin-bottom: 24px; }
+</style>
+</head>
+<body>
+
+<h1>LAB 3 — SQL Avançado e Preparação de Dados para Modelos de IA</h1>
+<p class="meta"><strong>Disciplina:</strong> Engenharia de Dados para Inteligência Artificial e Analytics<br>
+<strong>Aula:</strong> 3 — Implementação: SQL avançado e preparação de dados para modelos de IA<br>
+<strong>Duração do lab:</strong> ~1h30<br>
+<strong>Entrega:</strong> Scripts SQL + dataset de features + análise de qualidade</p>
+
+<h2>Objetivos de Aprendizagem</h2>
+<ol>
+<li>Escrever consultas SQL avançadas (JOINs, CTEs, window functions, agregações)</li>
+<li>Preparar um dataset estruturado para treinamento de modelos de ML</li>
+<li>Identificar e tratar problemas de qualidade nos dados via SQL</li>
+<li>Criar métricas de negócio diretamente no banco de dados</li>
+<li>Documentar um pipeline de feature engineering em SQL</li>
+</ol>
+
+<h2>Parte 0 — Setup do Ambiente (10 min)</h2>
+<h3>Opção A: PostgreSQL local ou Docker</h3>
+<pre>docker run --name pg-lab3 -e POSTGRES_PASSWORD=lodlog123 -p 5432:5432 -d postgres:15</pre>
+<h3>Opção B: DBeaver + SQLite</h3>
+<p>Crie um banco SQLite em arquivo.</p>
+<h3>Opção C: Databricks Community Edition</h3>
+<p>Use o SQL Editor para criar tabelas e executar queries.</p>
+<blockquote>O professor fornecerá um script de carga inicial com dados fictícios da LODLog (<code>lodlog_lab3_seed.sql</code>).</blockquote>
+
+<h2>Parte 1 — Análise Exploratória com SQL (25 min)</h2>
+<h3>Atividade 1.1: Conhecendo os Dados (individual, 10 min)</h3>
+<p>Execute e interprete as queries. Para cada uma, escreva uma frase do que revela.</p>
+
+<pre>-- Query 1: Volume de entregas por mês
+SELECT DATE_TRUNC('month', data_entrega) AS mes,
+       COUNT(*) AS total_entregas,
+       SUM(CASE WHEN atraso_min > 0 THEN 1 ELSE 0 END) AS entregas_atrasadas
+FROM fato_entregas
+GROUP BY 1
+ORDER BY 1;</pre>
+<p>Interpretação:</p>
+
+<pre>-- Query 2: Ranking de CDs por eficiência
+SELECT cd_origem,
+       ROUND(AVG(atraso_min), 2) AS atraso_medio_min,
+       ROUND(SUM(custo_combustivel), 2) AS custo_total_combustivel,
+       COUNT(DISTINCT veiculo_id) AS frota_alocada
+FROM fato_entregas
+WHERE data_entrega >= CURRENT_DATE - INTERVAL '90 days'
+GROUP BY cd_origem
+ORDER BY atraso_medio_min ASC;</pre>
+<p>Interpretação:</p>
+
+<pre>-- Query 3: Correlação simples entre distância e custo
+SELECT corr(distancia_km, custo_total) AS correlacao_distancia_custo
+FROM fato_entregas
+WHERE data_entrega >= CURRENT_DATE - INTERVAL '30 days';</pre>
+<p>Interpretação:</p>
+
+<h3>Atividade 1.2: Sua Primeira Query Analítica (individual, 15 min)</h3>
+<p>Escreva uma query que responda: <strong>"Qual o percentual de entregas no prazo por cliente, nos últimos 90 dias, para clientes com mais de 10 entregas?"</strong></p>
+<pre>-- Escreva sua query aqui
+
+</pre>
+
+<h2>Parte 2 — Window Functions e Séries Temporais (25 min)</h2>
+<h3>Atividade 2.1: Média Móvel de Atrasos (individual, 10 min)</h3>
+<p>Escreva uma query que calcule a <strong>média móvel de 7 dias</strong> de atraso por centro de distribuição.</p>
+<pre>-- Escreva sua query aqui
+
+</pre>
+
+<h3>Atividade 2.2: Ranking e Percentil (individual, 10 min)</h3>
+<p>Escreva uma query que classifique cada motorista em percentis de performance baseados no custo por km nos últimos 30 dias.</p>
+<pre>-- Escreva sua query aqui
+
+</pre>
+
+<h3>Atividade 2.3: Discussão em Grupo (5 min)</h3>
+<p>Por que window functions são mais eficientes que subqueries correlacionadas para cálculos como média móvel e ranking?</p>
+
+<h2>Parte 3 — Feature Engineering em SQL (30 min)</h2>
+<h3>Atividade 3.1: Crie a View <code>vw_features_ml</code> (grupo, 20 min)</h3>
+<p>Crie uma view que produza o dataset de features para o <strong>Modelo de Predição de Atraso</strong>:</p>
+<table>
+<tr><th>Feature</th><th>Como calcular em SQL</th></tr>
+<tr><td>distancia_km</td><td>Já existe na fato</td></tr>
+<tr><td>peso_carga_kg</td><td>Já existe na fato</td></tr>
+<tr><td>hora_saida</td><td>EXTRACT(HOUR FROM hora_saida)</td></tr>
+<tr><td>dia_semana</td><td>EXTRACT(DOW FROM data_entrega)</td></tr>
+<tr><td>eh_feriado</td><td>JOIN com dim_tempo</td></tr>
+<tr><td>temperatura_media_motor</td><td>Média dos sensores IoT na data</td></tr>
+<tr><td>ind_chuva</td><td>JOIN com dados de clima</td></tr>
+<tr><td>historico_atrasos_7d</td><td>Média de atraso do cliente nos últimos 7 dias</td></tr>
+<tr><td>dias_ultima_manutencao</td><td>Diferença entre data_entrega e última manutenção</td></tr>
+<tr><td>target (indicador_atraso)</td><td>1 se atraso_min > 0, senão 0</td></tr>
+</table>
+
+<pre>CREATE VIEW vw_features_ml AS
+WITH historico_cliente AS (
+    -- Calcule aqui o histórico de atrasos do cliente
+),
+manutencao_veiculo AS (
+    -- Calcule aqui os dias desde a última manutenção
+)
+SELECT
+    fe.sk_entrega,
+    fe.distancia_km,
+    fe.peso_carga_kg,
+    -- ... complete as features
+FROM fato_entregas fe
+JOIN dim_cliente dc ON fe.sk_cliente = dc.sk_cliente
+-- ... complete os JOINs
+;</pre>
+
+<h3>Atividade 3.2: Valide a Feature Store (individual, 10 min)</h3>
+<ol>
+<li><strong>Completude:</strong> <code>SELECT COUNT(*) FROM vw_features_ml WHERE temperatura_media_motor IS NULL;</code></li>
+<li><strong>Range:</strong> <code>SELECT MIN(distancia_km), MAX(distancia_km) FROM vw_features_ml;</code></li>
+<li><strong>Distribuição do target:</strong> <code>SELECT indicador_atraso, COUNT(*) FROM vw_features_ml GROUP BY 1;</code></li>
+<li><strong>Correlação preliminar:</strong> <code>SELECT corr(distancia_km, indicador_atraso) FROM vw_features_ml;</code></li>
+</ol>
+<p>Registre os resultados. Há algum problema evidente?</p>
+
+<h2>Parte 4 — Qualidade de Dados via SQL (15 min)</h2>
+<h3>Atividade 4.1: Detecte Problemas (individual, 10 min)</h3>
+<p>Escreva queries que detectem:</p>
+<ol>
+<li><strong>Registros duplicados</strong> na tabela fato</li>
+<li><strong>Valores negativos</strong> em campos que deveriam ser positivos</li>
+<li><strong>Outliers</strong> em atraso_min</li>
+<li><strong>Inconsistência</strong> entre dimensões (clientes na fato que não existem em dim_cliente)</li>
+</ol>
+
+<pre>-- Query 1: Duplicatas
+
+-- Query 2: Valores negativos
+
+-- Query 3: Outliers
+
+-- Query 4: Inconsistência de FK
+
+</pre>
+
+<h3>Atividade 4.2: Plano de Correção (grupo, 5 min)</h3>
+<p>Para cada problema detectado: causa provável, como corrigir no ETL, e como prevenir.</p>
+
+<h2>Parte 5 — Entrega do Grupo (5 min)</h2>
+<h3>Produto do LAB 3</h3>
+<p>Entregue um arquivo <code>.sql</code> comentado contendo:</p>
+<ol>
+<li>Query analítica da Parte 1.2</li>
+<li>Window functions da Parte 2</li>
+<li>Criação da view <code>vw_features_ml</code> (Parte 3)</li>
+<li>Queries de qualidade da Parte 4</li>
+<li>Comentário no topo indicando: <strong>"Este dataset alimenta o Modelo X de IA, com as features Y"</strong></li>
+</ol>
+
+<h3>Rubrica de Avaliação do LAB 3 (compõe 15% da nota do projeto individual)</h3>
+<table>
+<tr><th>Critério</th><th>Peso</th><th>Excelente</th><th>Satisfatório</th><th>Insatisfatório</th></tr>
+<tr><td>Query analítica</td><td>15%</td><td>Sintaxe correta, lógica clara</td><td>1 erro menor</td><td>Erro grave</td></tr>
+<tr><td>Window functions</td><td>20%</td><td>Uso correto de PARTITION BY e ORDER BY</td><td>Uso parcial</td><td>Não usou</td></tr>
+<tr><td>Feature engineering</td><td>30%</td><td>8+ features criadas, justificadas</td><td>5-7 features</td><td>&lt; 5 features</td></tr>
+<tr><td>Qualidade de dados</td><td>20%</td><td>4 queries de qualidade funcionando</td><td>2-3 queries</td><td>&lt; 2 queries</td></tr>
+<tr><td>Documentação</td><td>15%</td><td>SQL comentado, explicação clara</td><td>Comentários básicos</td><td>Sem comentários</td></tr>
+</table>
+
+<blockquote>
+<strong>Dica do Professor:</strong> SQL não é apenas uma linguagem de consulta — é a principal ferramenta de feature engineering em pipelines de dados tradicionais. Muitos modelos de ML em produção são alimentados por views SQL materializadas diariamente. Domine o SQL antes de partir para PySpark ou Pandas.
+</blockquote>
+
+</body>
+</html>

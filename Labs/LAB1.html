@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>LAB 1 — Mapeamento do Ecossistema de Dados e Fundamentos</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; line-height: 1.6; color: #333; }
+  h1 { color: #1a5276; border-bottom: 2px solid #1a5276; padding-bottom: 8px; }
+  h2 { color: #2874a6; margin-top: 32px; }
+  h3 { color: #2e86c1; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+  th, td { border: 1px solid #bbb; padding: 10px; text-align: left; }
+  th { background: #eaf2f8; }
+  tr:nth-child(even) { background: #f8f9f9; }
+  blockquote { border-left: 4px solid #1a5276; margin: 16px 0; padding: 12px 20px; background: #f4f6f7; font-style: italic; }
+  code { background: #f4f6f7; padding: 2px 6px; border-radius: 4px; }
+  ul { margin: 8px 0; }
+  .meta { color: #555; font-size: 0.95em; margin-bottom: 24px; }
+</style>
+</head>
+<body>
+
+<h1>LAB 1 — Mapeamento do Ecossistema de Dados e Fundamentos</h1>
+<p class="meta"><strong>Disciplina:</strong> Engenharia de Dados para Inteligência Artificial e Analytics<br>
+<strong>Aula:</strong> 1 — Fundamentos<br>
+<strong>Duração do lab:</strong> ~1h30 (dentro dos 3h20 da aula)<br>
+<strong>Entrega:</strong> Documento de respostas + diagrama inicial do grupo</p>
+
+<h2>Objetivos de Aprendizagem</h2>
+<ol>
+<li>Mapear o ecossistema de dados de uma organização real ou fictícia</li>
+<li>Distinguir sistemas transacionais de sistemas analíticos</li>
+<li>Classificar dados segundo os 5 Vs do Big Data</li>
+<li>Identificar oportunidades de uso de IA a partir de dados existentes</li>
+<li>Posicionar serviços de nuvem nos modelos IaaS, PaaS e SaaS</li>
+</ol>
+
+<h2>Parte 0 — Formação dos Grupos (10 min)</h2>
+<ul>
+<li>Formar grupos de 5 a 6 integrantes</li>
+<li>Escolher um <strong>"Data Product Owner"</strong> do grupo</li>
+<li>Acessar o ECLASS e confirmar formação</li>
+</ul>
+
+<h2>Parte 1 — Linha do Tempo da Engenharia de Dados (20 min)</h2>
+<h3>Atividade 1.1: Cartão-Resposta Histórico (individual, 10 min)</h3>
+<p>Para cada marco histórico abaixo, responda em uma frase: <strong>"Por que isso mudou a forma como organizamos dados?"</strong></p>
+<table>
+<tr><th>Marco</th><th>Sua Resposta</th></tr>
+<tr><td>Cartões perfurados (Hollerith, 1911)</td><td></td></tr>
+<tr><td>Fitas magnéticas (1951)</td><td></td></tr>
+<tr><td>Discos rígidos e acesso randômico (anos 70)</td><td></td></tr>
+<tr><td>Modelo relacional de Codd (1970)</td><td></td></tr>
+<tr><td>Primeiro SGBD comercial (Oracle, 1977)</td><td></td></tr>
+<tr><td>Data Warehouse (Inmon/Kimball, anos 90)</td><td></td></tr>
+<tr><td>Google File System / Big Data (1998/1997)</td><td></td></tr>
+<tr><td>Hypervisor e computação em nuvem (2000+)</td><td></td></tr>
+<tr><td>Transformers / IA Generativa (2017/2022)</td><td></td></tr>
+</table>
+
+<h3>Atividade 1.2: Discussão em Grupo (10 min)</h3>
+<p>Discuta no grupo: <strong>"Qual desses marcos foi mais importante para a Inteligência Artificial aplicada a negócios? Por que?"</strong></p>
+<p>Registre a conclusão do grupo em 3 a 5 linhas.</p>
+
+<h2>Parte 2 — Transacional vs Analítico (20 min)</h2>
+<h3>Atividade 2.1: Classifique os Sistemas (individual + grupo, 10 min)</h3>
+<p>Classifique cada sistema da LODLog como <strong>Transacional (T)</strong> ou <strong>Analítico (A)</strong>. Justifique em uma frase.</p>
+<table>
+<tr><th>Sistema</th><th>T ou A?</th><th>Justificativa</th></tr>
+<tr><td>ERP que registra o pagamento de um pedido</td><td></td><td></td></tr>
+<tr><td>Dashboard de SLA de entregas do mês</td><td></td><td></td></tr>
+<tr><td>WMS que baixa o estoque no momento da expedição</td><td></td><td></td></tr>
+<tr><td>Modelo de ML que prediz atraso de entrega</td><td></td><td></td></tr>
+<tr><td>TMS que aloca um veículo a um pedido</td><td></td><td></td></tr>
+<tr><td>Relatório de ranking de CDs por eficiência</td><td></td><td></td></tr>
+<tr><td>API de IoT que recebe evento do sensor da frota</td><td></td><td></td></tr>
+<tr><td>Planilha Excel usada pelo supervisor para escalar motoristas</td><td></td><td></td></tr>
+</table>
+
+<h3>Atividade 2.2: Mapeamento LODLog (grupo, 10 min)</h3>
+<p>No cenário da LODLog, liste:</p>
+<ol>
+<li><strong>3 sistemas transacionais</strong> que a empresa provavelmente já possui</li>
+<li><strong>2 sistemas analíticos</strong> que ela deveria ter</li>
+<li><strong>1 sistema que começa como transacional e vira analítico</strong> (ex: dados de IoT)</li>
+</ol>
+
+<h2>Parte 3 — Os 5 Vs na LODLog (25 min)</h2>
+<h3>Atividade 3.1: Preencha a Matriz dos 5 Vs (grupo, 15 min)</h3>
+<table>
+<tr><th>Fonte</th><th>Valor</th><th>Veracidade</th><th>Variedade</th><th>Velocidade</th><th>Volume/dia</th></tr>
+<tr><td>Sensores IoT da frota</td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>Pedidos do TMS</td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>Estoque do WMS</td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>APIs externas (clima, tráfego)</td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>Planilhas Excel do supervisor</td><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+
+<h3>Atividade 3.2: Priorização (grupo, 10 min)</h3>
+<p>Dado o problema de negócio da LODLog (<em>"estamos perdendo dinheiro, mas não sabemos onde"</em>), ordene as fontes acima por <strong>prioridade de ingestão</strong> (1 = mais urgente). Justifique a escolha do top 3.</p>
+
+<h2>Parte 4 — Nuvem e Modelos de Serviço (20 min)</h2>
+<h3>Atividade 4.1: Classifique os Serviços (individual, 10 min)</h3>
+<table>
+<tr><th>Serviço/Tecnologia</th><th>IaaS / PaaS / SaaS / On-Prem?</th></tr>
+<tr><td>Servidor físico no datacenter da empresa</td><td></td></tr>
+<tr><td>Amazon EC2 (máquina virtual)</td><td></td></tr>
+<tr><td>Amazon RDS (banco gerenciado)</td><td></td></tr>
+<tr><td>Power BI Online</td><td></td></tr>
+<tr><td>Databricks Community Edition</td><td></td></tr>
+<tr><td>PostgreSQL instalado em um EC2</td><td></td></tr>
+<tr><td>Snowflake</td><td></td></tr>
+<tr><td>Excel instalado no computador do usuário</td><td></td></tr>
+</table>
+
+<h3>Atividade 4.2: Mapeamento para o Pipeline LODLog (grupo, 10 min)</h3>
+<p>Desenhe onde cada modelo de serviço se encaixa no pipeline da LODLog:</p>
+<ul>
+<li><strong>Ingestão:</strong> qual camada (I/P/S) e exemplo de serviço?</li>
+<li><strong>Processamento/Transformação:</strong> qual camada (I/P/S) e exemplo de serviço?</li>
+<li><strong>Consumo/Visualização:</strong> qual camada (I/P/S) e exemplo de serviço?</li>
+</ul>
+<p><strong>Regra:</strong> o grupo deve usar pelo menos <strong>um serviço de cada modelo</strong> (IaaS, PaaS, SaaS) e justificar por que escolheu cada um.</p>
+
+<h2>Parte 5 — Entrega do Grupo (15 min)</h2>
+<h3>Produto do LAB 1</h3>
+<p>Crie um documento simples contendo:</p>
+<ol>
+<li>Respostas da Parte 1 (marco histórico escolhido pelo grupo + justificativa)</li>
+<li>Classificação T/A da Parte 2</li>
+<li>Matriz dos 5 Vs preenchida (Parte 3)</li>
+<li>Diagrama simplificado da arquitetura LODLog com IaaS/PaaS/SaaS (Parte 4)</li>
+<li>Primeira versão do problema de negócio que o grupo vai atacar no projeto (uma frase)</li>
+</ol>
+
+<h3>Rubrica de Avaliação do LAB 1 (diagnóstico)</h3>
+<table>
+<tr><th>Critério</th><th>Excelente</th><th>Satisfatório</th><th>Precisa Melhorar</th></tr>
+<tr><td>Diferenciação T vs A</td><td>Todos corretos com justificativas claras</td><td>6-7 corretos</td><td>&lt; 6 corretos</td></tr>
+<tr><td>Matriz 5 Vs</td><td>Todos os Vs analisados com profundidade</td><td>Alguns Vs genéricos</td><td>Vs mal compreendidos</td></tr>
+<tr><td>Arquitetura I/P/S</td><td>Coerente, justificada, usa os 3 modelos</td><td>Usa os 3 modelos sem justificar</td><td>Confunde I/P/S</td></tr>
+<tr><td>Problema de negócio</td><td>Clara, mensurável, ligada aos dados</td><td>Clara mas pouco mensurável</td><td>Vaga ou sem ligação com dados</td></tr>
+</table>
+
+<blockquote>
+<strong>Dica do Professor:</strong> Não se preocupe em "acertar" a arquitetura agora. O objetivo do LAB 1 é <strong>diagnosticar</strong> o que o grupo já sabe e <strong>alinhar</strong> com os conceitos da aula. A arquitetura evoluirá nos próximos labs.
+</blockquote>
+
+</body>
+</html>
