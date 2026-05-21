@@ -16,7 +16,7 @@
 --   · CREATE INDEX → OPTIMIZE ... ZORDER BY
 --   · VARCHAR/CHAR → STRING
 --   · x::INT → CAST(x AS INT)
---   · CHECK constraints são ENFORCED pelo Delta Lake
+--   · CHECK constraints → REMOVED (not supported in this Databricks version)
 --   · NOT NULL é ENFORCED pelo Delta Lake
 -- ================================================================
 
@@ -42,13 +42,11 @@ CREATE TABLE IF NOT EXISTS lodlog_op.cliente (
   cnpj          STRING    NOT NULL,  -- UNIQUE: não duplicar CNPJ
   razao_social  STRING    NOT NULL,
   nome_fantasia STRING,
-  segmento      STRING    NOT NULL,
+  segmento      STRING    NOT NULL,  -- Valores: 'Varejista','Industrial','Atacadista','Outro'
   email         STRING,
   telefone      STRING,
   data_cadastro DATE      NOT NULL,
-  ativo         BOOLEAN   NOT NULL,
-  CONSTRAINT chk_cliente_segmento
-    CHECK (segmento IN ('Varejista','Industrial','Atacadista','Outro'))
+  ativo         BOOLEAN   NOT NULL
 )
 USING DELTA
 COMMENT 'Cadastro de clientes ativos da LODLog';
@@ -67,8 +65,7 @@ CREATE TABLE IF NOT EXISTS lodlog_op.endereco_cliente (
   cep         STRING  NOT NULL,
   latitude    DECIMAL(9,6),
   longitude   DECIMAL(9,6),
-  tipo        STRING  NOT NULL,
-  CONSTRAINT chk_endereco_tipo CHECK (tipo IN ('Entrega','Cobrança','Principal'))
+  tipo        STRING  NOT NULL  -- Valores: 'Entrega','Cobrança','Principal'
 )
 USING DELTA;
 
@@ -78,12 +75,9 @@ CREATE TABLE IF NOT EXISTS lodlog_op.contrato (
   numero_contrato      STRING      NOT NULL,
   data_inicio          DATE        NOT NULL,
   data_fim             DATE,
-  sla_pontualidade_pct DECIMAL(5,2) NOT NULL,
-  multa_atraso_pct     DECIMAL(5,2) NOT NULL,
-  status               STRING      NOT NULL,
-  CONSTRAINT chk_contrato_sla    CHECK (sla_pontualidade_pct BETWEEN 0 AND 100),
-  CONSTRAINT chk_contrato_multa  CHECK (multa_atraso_pct >= 0),
-  CONSTRAINT chk_contrato_status CHECK (status IN ('Ativo','Encerrado','Suspenso'))
+  sla_pontualidade_pct DECIMAL(5,2) NOT NULL,  -- 0-100
+  multa_atraso_pct     DECIMAL(5,2) NOT NULL,  -- >= 0
+  status               STRING      NOT NULL    -- Valores: 'Ativo','Encerrado','Suspenso'
 )
 USING DELTA;
 
@@ -97,17 +91,12 @@ CREATE TABLE IF NOT EXISTS lodlog_op.veiculo (
   placa          STRING      NOT NULL,  -- UNIQUE
   modelo         STRING      NOT NULL,
   fabricante     STRING,
-  ano_fabricacao SMALLINT    NOT NULL,
-  tipo           STRING      NOT NULL,
-  capacidade_kg  DECIMAL(10,2) NOT NULL,
-  hodometro_km   DECIMAL(10,0) NOT NULL,
+  ano_fabricacao SMALLINT    NOT NULL,  -- >= 1990
+  tipo           STRING      NOT NULL,  -- Valores: 'Leve','Médio','Pesado'
+  capacidade_kg  DECIMAL(10,2) NOT NULL,  -- > 0
+  hodometro_km   DECIMAL(10,0) NOT NULL,  -- >= 0
   data_aquisicao DATE,
-  status         STRING      NOT NULL,
-  CONSTRAINT chk_veiculo_ano        CHECK (ano_fabricacao >= 1990),
-  CONSTRAINT chk_veiculo_tipo       CHECK (tipo IN ('Leve','Médio','Pesado')),
-  CONSTRAINT chk_veiculo_capacidade CHECK (capacidade_kg > 0),
-  CONSTRAINT chk_veiculo_hodometro  CHECK (hodometro_km >= 0),
-  CONSTRAINT chk_veiculo_status     CHECK (status IN ('Disponível','Em Rota','Manutenção','Inativo'))
+  status         STRING      NOT NULL  -- Valores: 'Disponível','Em Rota','Manutenção','Inativo'
 )
 USING DELTA;
 
@@ -116,31 +105,24 @@ CREATE TABLE IF NOT EXISTS lodlog_op.motorista (
   cpf              STRING   NOT NULL,  -- UNIQUE
   nome_completo    STRING   NOT NULL,
   cnh              STRING   NOT NULL,  -- UNIQUE
-  categoria_cnh    STRING   NOT NULL,
+  categoria_cnh    STRING   NOT NULL,  -- Valores: 'A','B','C','D','E','AB','AC','AD','AE'
   validade_cnh     DATE     NOT NULL,
   data_admissao    DATE     NOT NULL,
-  score_seguranca  DECIMAL(5,2),
-  status           STRING   NOT NULL,
-  CONSTRAINT chk_motorista_cnh    CHECK (categoria_cnh IN ('A','B','C','D','E','AB','AC','AD','AE')),
-  CONSTRAINT chk_motorista_score  CHECK (score_seguranca IS NULL OR score_seguranca BETWEEN 0 AND 100),
-  CONSTRAINT chk_motorista_status CHECK (status IN ('Ativo','Afastado','Desligado'))
+  score_seguranca  DECIMAL(5,2),  -- NULL ou 0-100
+  status           STRING   NOT NULL  -- Valores: 'Ativo','Afastado','Desligado'
 )
 USING DELTA;
 
 CREATE TABLE IF NOT EXISTS lodlog_op.manutencao (
   manutencao_id   BIGINT        NOT NULL,
   veiculo_id      BIGINT        NOT NULL,  -- FK → veiculo
-  tipo            STRING        NOT NULL,
+  tipo            STRING        NOT NULL,  -- Valores: 'Preventiva','Corretiva','Preditiva'
   data_abertura   TIMESTAMP     NOT NULL,
   data_conclusao  TIMESTAMP,
-  km_no_momento   DECIMAL(10,0) NOT NULL,
-  custo_total     DECIMAL(12,2),
+  km_no_momento   DECIMAL(10,0) NOT NULL,  -- >= 0
+  custo_total     DECIMAL(12,2),  -- NULL ou >= 0
   descricao       STRING,
-  status          STRING        NOT NULL,
-  CONSTRAINT chk_manut_tipo   CHECK (tipo IN ('Preventiva','Corretiva','Preditiva')),
-  CONSTRAINT chk_manut_km     CHECK (km_no_momento >= 0),
-  CONSTRAINT chk_manut_custo  CHECK (custo_total IS NULL OR custo_total >= 0),
-  CONSTRAINT chk_manut_status CHECK (status IN ('Aberta','Em Execução','Concluída'))
+  status          STRING        NOT NULL  -- Valores: 'Aberta','Em Execução','Concluída'
 )
 USING DELTA;
 
@@ -149,22 +131,18 @@ CREATE TABLE IF NOT EXISTS lodlog_op.telemetria (
   telemetria_id         BIGINT        NOT NULL,
   veiculo_id            BIGINT        NOT NULL,  -- FK → veiculo
   timestamp_evento      TIMESTAMP     NOT NULL,
+  data_evento           DATE          NOT NULL,  -- Coluna de partição (DATE extraído de timestamp_evento)
   latitude              DECIMAL(9,6)  NOT NULL,
   longitude             DECIMAL(9,6)  NOT NULL,
-  velocidade_kmh        DECIMAL(6,2)  NOT NULL,
-  rpm_motor             INT,
-  temperatura_motor_c   DECIMAL(6,2),
-  nivel_combustivel_pct DECIMAL(5,2),
-  peso_carga_kg         DECIMAL(10,2),
-  hodometro_km          DECIMAL(10,0),
-  CONSTRAINT chk_telem_vel   CHECK (velocidade_kmh BETWEEN 0 AND 200),
-  CONSTRAINT chk_telem_rpm   CHECK (rpm_motor IS NULL OR rpm_motor BETWEEN 0 AND 8000),
-  CONSTRAINT chk_telem_temp  CHECK (temperatura_motor_c IS NULL OR temperatura_motor_c BETWEEN -50 AND 200),
-  CONSTRAINT chk_telem_comb  CHECK (nivel_combustivel_pct IS NULL OR nivel_combustivel_pct BETWEEN 0 AND 100),
-  CONSTRAINT chk_telem_peso  CHECK (peso_carga_kg IS NULL OR peso_carga_kg >= 0)
+  velocidade_kmh        DECIMAL(6,2)  NOT NULL,  -- 0-200
+  rpm_motor             INT,  -- NULL ou 0-8000
+  temperatura_motor_c   DECIMAL(6,2),  -- NULL ou -50 a 200
+  nivel_combustivel_pct DECIMAL(5,2),  -- NULL ou 0-100
+  peso_carga_kg         DECIMAL(10,2),  -- NULL ou >= 0
+  hodometro_km          DECIMAL(10,0)
 )
 USING DELTA
-PARTITIONED BY (DATE(timestamp_evento))  -- partition pruning nas queries por período
+CLUSTER BY (data_evento, veiculo_id)
 COMMENT 'Eventos IoT da frota (~864k/dia). Particionar por data é obrigatório em produção.';
 
 
@@ -181,9 +159,8 @@ CREATE TABLE IF NOT EXISTS lodlog_op.centro_distribuicao (
   cep           STRING        NOT NULL,
   latitude      DECIMAL(9,6)  NOT NULL,
   longitude     DECIMAL(9,6)  NOT NULL,
-  capacidade_m3 DECIMAL(10,2) NOT NULL,
-  ativo         BOOLEAN       NOT NULL,
-  CONSTRAINT chk_cd_capacidade CHECK (capacidade_m3 > 0)
+  capacidade_m3 DECIMAL(10,2) NOT NULL,  -- > 0
+  ativo         BOOLEAN       NOT NULL
 )
 USING DELTA;
 
@@ -192,11 +169,9 @@ CREATE TABLE IF NOT EXISTS lodlog_op.produto (
   sku                STRING        NOT NULL,  -- UNIQUE
   nome               STRING        NOT NULL,
   categoria          STRING        NOT NULL,
-  peso_unitario_kg   DECIMAL(10,3) NOT NULL,
-  volume_unitario_m3 DECIMAL(10,4),
-  ativo              BOOLEAN       NOT NULL,
-  CONSTRAINT chk_produto_peso   CHECK (peso_unitario_kg > 0),
-  CONSTRAINT chk_produto_volume CHECK (volume_unitario_m3 IS NULL OR volume_unitario_m3 > 0)
+  peso_unitario_kg   DECIMAL(10,3) NOT NULL,  -- > 0
+  volume_unitario_m3 DECIMAL(10,4),  -- NULL ou > 0
+  ativo              BOOLEAN       NOT NULL
 )
 USING DELTA;
 
@@ -205,12 +180,10 @@ CREATE TABLE IF NOT EXISTS lodlog_op.estoque (
   estoque_id            BIGINT NOT NULL,
   cd_id                 BIGINT NOT NULL,  -- FK → centro_distribuicao
   produto_id            BIGINT NOT NULL,  -- FK → produto
-  quantidade_disponivel INT    NOT NULL,
-  quantidade_reservada  INT    NOT NULL,
+  quantidade_disponivel INT    NOT NULL,  -- >= 0
+  quantidade_reservada  INT    NOT NULL,  -- >= 0
   posicao_galpao        STRING,
-  ultima_atualizacao    TIMESTAMP NOT NULL,
-  CONSTRAINT chk_estoque_disp CHECK (quantidade_disponivel >= 0),
-  CONSTRAINT chk_estoque_res  CHECK (quantidade_reservada >= 0)
+  ultima_atualizacao    TIMESTAMP NOT NULL
 )
 USING DELTA;
 
@@ -218,12 +191,11 @@ USING DELTA;
 CREATE TABLE IF NOT EXISTS lodlog_op.movimentacao_estoque (
   movimentacao_id BIGINT    NOT NULL,
   estoque_id      BIGINT    NOT NULL,  -- FK → estoque
-  tipo_mov        STRING    NOT NULL,
+  tipo_mov        STRING    NOT NULL,  -- Valores: 'Entrada','Saída','Reserva','Liberação','Ajuste'
   quantidade      INT       NOT NULL,
   timestamp_mov   TIMESTAMP NOT NULL,
   referencia      STRING,              -- pedido_id, NF, etc.
-  observacao      STRING,
-  CONSTRAINT chk_mov_tipo CHECK (tipo_mov IN ('Entrada','Saída','Reserva','Liberação','Ajuste'))
+  observacao      STRING
 )
 USING DELTA;
 
@@ -240,12 +212,9 @@ CREATE TABLE IF NOT EXISTS lodlog_op.pedido (
   cd_origem_id        BIGINT    NOT NULL,  -- FK → centro_distribuicao
   endereco_destino_id BIGINT    NOT NULL,  -- FK → endereco_cliente
   data_pedido         TIMESTAMP NOT NULL,
-  prazo_entrega       TIMESTAMP NOT NULL,
-  prioridade          STRING    NOT NULL,
-  status_pedido       STRING    NOT NULL,
-  CONSTRAINT chk_pedido_prioridade CHECK (prioridade IN ('Baixa','Normal','Alta','Urgente')),
-  CONSTRAINT chk_pedido_status     CHECK (status_pedido IN ('Aberto','Em Separação','Despachado','Entregue','Cancelado')),
-  CONSTRAINT chk_pedido_prazo      CHECK (prazo_entrega > data_pedido)
+  prazo_entrega       TIMESTAMP NOT NULL,  -- > data_pedido
+  prioridade          STRING    NOT NULL,  -- Valores: 'Baixa','Normal','Alta','Urgente'
+  status_pedido       STRING    NOT NULL  -- Valores: 'Aberto','Em Separação','Despachado','Entregue','Cancelado'
 )
 USING DELTA;
 
@@ -254,10 +223,8 @@ CREATE TABLE IF NOT EXISTS lodlog_op.item_pedido (
   item_id       BIGINT        NOT NULL,
   pedido_id     BIGINT        NOT NULL,  -- FK → pedido
   produto_id    BIGINT        NOT NULL,  -- FK → produto
-  quantidade    INT           NOT NULL,
-  peso_total_kg DECIMAL(10,2) NOT NULL,
-  CONSTRAINT chk_item_qtd  CHECK (quantidade > 0),
-  CONSTRAINT chk_item_peso CHECK (peso_total_kg > 0)
+  quantidade    INT           NOT NULL,  -- > 0
+  peso_total_kg DECIMAL(10,2) NOT NULL  -- > 0
 )
 USING DELTA;
 
@@ -269,18 +236,12 @@ CREATE TABLE IF NOT EXISTS lodlog_op.entrega (
   data_saida            TIMESTAMP     NOT NULL,
   data_entrega_prevista TIMESTAMP     NOT NULL,
   data_entrega_real     TIMESTAMP,
-  distancia_km          DECIMAL(10,2) NOT NULL,
-  custo_combustivel     DECIMAL(12,2),
-  custo_pedagio         DECIMAL(12,2),
-  valor_frete           DECIMAL(12,2) NOT NULL,
-  multa_atraso          DECIMAL(12,2),
-  status_entrega        STRING        NOT NULL,
-  CONSTRAINT chk_entrega_dist    CHECK (distancia_km > 0),
-  CONSTRAINT chk_entrega_frete   CHECK (valor_frete > 0),
-  CONSTRAINT chk_entrega_comb    CHECK (custo_combustivel IS NULL OR custo_combustivel >= 0),
-  CONSTRAINT chk_entrega_pedagio CHECK (custo_pedagio IS NULL OR custo_pedagio >= 0),
-  CONSTRAINT chk_entrega_multa   CHECK (multa_atraso IS NULL OR multa_atraso >= 0),
-  CONSTRAINT chk_entrega_status  CHECK (status_entrega IN ('Pendente','Em Rota','Entregue','Ocorrência','Devolvido'))
+  distancia_km          DECIMAL(10,2) NOT NULL,  -- > 0
+  custo_combustivel     DECIMAL(12,2),  -- NULL ou >= 0
+  custo_pedagio         DECIMAL(12,2),  -- NULL ou >= 0
+  valor_frete           DECIMAL(12,2) NOT NULL,  -- > 0
+  multa_atraso          DECIMAL(12,2),  -- NULL ou >= 0
+  status_entrega        STRING        NOT NULL  -- Valores: 'Pendente','Em Rota','Entregue','Ocorrência','Devolvido'
 )
 USING DELTA;
 
@@ -295,22 +256,17 @@ USING DELTA;
 CREATE TABLE IF NOT EXISTS lodlog_dw.dim_tempo (
   sk_tempo         INT     NOT NULL,  -- PK: ex. 20250714 (YYYYMMDD)
   data_completa    DATE    NOT NULL,
-  dia              SMALLINT NOT NULL,
-  mes              SMALLINT NOT NULL,
+  dia              SMALLINT NOT NULL,  -- 1-31
+  mes              SMALLINT NOT NULL,  -- 1-12
   ano              SMALLINT NOT NULL,
-  trimestre        SMALLINT NOT NULL,
-  semana_do_ano    SMALLINT NOT NULL,
+  trimestre        SMALLINT NOT NULL,  -- 1-4
+  semana_do_ano    SMALLINT NOT NULL,  -- 1-53
   dia_da_semana    SMALLINT NOT NULL,  -- 1=Seg ... 7=Dom
   nome_dia_semana  STRING  NOT NULL,
   nome_mes         STRING  NOT NULL,
   flag_feriado     BOOLEAN NOT NULL,
   flag_fim_semana  BOOLEAN NOT NULL,
-  descricao_feriado STRING,
-  CONSTRAINT chk_tempo_dia      CHECK (dia BETWEEN 1 AND 31),
-  CONSTRAINT chk_tempo_mes      CHECK (mes BETWEEN 1 AND 12),
-  CONSTRAINT chk_tempo_trim     CHECK (trimestre BETWEEN 1 AND 4),
-  CONSTRAINT chk_tempo_semana   CHECK (semana_do_ano BETWEEN 1 AND 53),
-  CONSTRAINT chk_tempo_diasem   CHECK (dia_da_semana BETWEEN 1 AND 7)
+  descricao_feriado STRING
 )
 USING DELTA
 COMMENT 'Dimensão tempo — carga feita via script Python (1 linha/dia)';
@@ -324,15 +280,13 @@ CREATE TABLE IF NOT EXISTS lodlog_dw.dim_cliente (
   segmento                   STRING  NOT NULL,
   municipio                  STRING  NOT NULL,
   uf                         STRING  NOT NULL,
-  regiao                     STRING  NOT NULL,
-  tempo_relacionamento_meses INT     NOT NULL,
+  regiao                     STRING  NOT NULL,  -- Valores: 'Norte','Nordeste','Centro-Oeste','Sudeste','Sul'
+  tempo_relacionamento_meses INT     NOT NULL,  -- >= 0
   sla_contratual_pct         DECIMAL(5,2),
   -- campos SCD Tipo 2: rastreiam versões históricas do registro
   data_inicio_vigencia       DATE    NOT NULL,
   data_fim_vigencia          DATE,                -- NULL = registro atual
-  flag_registro_atual        BOOLEAN NOT NULL,
-  CONSTRAINT chk_cli_regiao CHECK (regiao IN ('Norte','Nordeste','Centro-Oeste','Sudeste','Sul')),
-  CONSTRAINT chk_cli_tempo  CHECK (tempo_relacionamento_meses >= 0)
+  flag_registro_atual        BOOLEAN NOT NULL
 )
 USING DELTA;
 
@@ -346,11 +300,10 @@ CREATE TABLE IF NOT EXISTS lodlog_dw.dim_veiculo (
   ano_fabricacao       SMALLINT    NOT NULL,
   tipo                 STRING      NOT NULL,
   capacidade_kg        DECIMAL(10,2) NOT NULL,
-  faixa_capacidade     STRING      NOT NULL,
+  faixa_capacidade     STRING      NOT NULL,  -- Valores: 'Até 1t','1-5t','5-15t','Acima 15t'
   data_inicio_vigencia DATE        NOT NULL,
   data_fim_vigencia    DATE,
-  flag_registro_atual  BOOLEAN     NOT NULL,
-  CONSTRAINT chk_veic_faixa CHECK (faixa_capacidade IN ('Até 1t','1-5t','5-15t','Acima 15t'))
+  flag_registro_atual  BOOLEAN     NOT NULL
 )
 USING DELTA;
 
@@ -360,15 +313,12 @@ CREATE TABLE IF NOT EXISTS lodlog_dw.dim_motorista (
   motorista_id         BIGINT   NOT NULL,
   nome_completo        STRING   NOT NULL,
   categoria_cnh        STRING   NOT NULL,
-  tempo_empresa_meses  INT      NOT NULL,
-  faixa_experiencia    STRING   NOT NULL,
-  score_seguranca      DECIMAL(5,2),
+  tempo_empresa_meses  INT      NOT NULL,  -- >= 0
+  faixa_experiencia    STRING   NOT NULL,  -- Valores: 'Júnior','Pleno','Sênior'
+  score_seguranca      DECIMAL(5,2),  -- NULL ou 0-100
   data_inicio_vigencia DATE     NOT NULL,
   data_fim_vigencia    DATE,
-  flag_registro_atual  BOOLEAN  NOT NULL,
-  CONSTRAINT chk_mot_faixa CHECK (faixa_experiencia IN ('Júnior','Pleno','Sênior')),
-  CONSTRAINT chk_mot_tempo  CHECK (tempo_empresa_meses >= 0),
-  CONSTRAINT chk_mot_score  CHECK (score_seguranca IS NULL OR score_seguranca BETWEEN 0 AND 100)
+  flag_registro_atual  BOOLEAN  NOT NULL
 )
 USING DELTA;
 
@@ -380,11 +330,10 @@ CREATE TABLE IF NOT EXISTS lodlog_dw.dim_centro_distribuicao (
   nome          STRING        NOT NULL,
   municipio     STRING        NOT NULL,
   uf            STRING        NOT NULL,
-  regiao        STRING        NOT NULL,
+  regiao        STRING        NOT NULL,  -- Valores: 'Norte','Nordeste','Centro-Oeste','Sudeste','Sul'
   capacidade_m3 DECIMAL(10,2) NOT NULL,
   latitude      DECIMAL(9,6),
-  longitude     DECIMAL(9,6),
-  CONSTRAINT chk_cd_regiao CHECK (regiao IN ('Norte','Nordeste','Centro-Oeste','Sudeste','Sul'))
+  longitude     DECIMAL(9,6)
 )
 USING DELTA;
 
@@ -408,26 +357,19 @@ CREATE TABLE IF NOT EXISTS lodlog_dw.fato_entregas (
   pedido_id            BIGINT  NOT NULL,
 
   -- Métricas aditivas (somáveis em qualquer combinação de dimensões)
-  quantidade_volumes   INT           NOT NULL,
-  peso_total_kg        DECIMAL(10,2) NOT NULL,
-  distancia_km         DECIMAL(10,2) NOT NULL,
-  tempo_estimado_min   INT           NOT NULL,
+  quantidade_volumes   INT           NOT NULL,  -- >= 0
+  peso_total_kg        DECIMAL(10,2) NOT NULL,  -- > 0
+  distancia_km         DECIMAL(10,2) NOT NULL,  -- > 0
+  tempo_estimado_min   INT           NOT NULL,  -- > 0
   tempo_real_min       INT,
   custo_combustivel    DECIMAL(12,2) NOT NULL,
   custo_pedagio        DECIMAL(12,2) NOT NULL,
-  valor_frete          DECIMAL(12,2) NOT NULL,
+  valor_frete          DECIMAL(12,2) NOT NULL,  -- > 0
   multa_atraso         DECIMAL(12,2) NOT NULL,
 
   -- Métricas derivadas
   minutos_atraso       INT     NOT NULL,  -- 0 = no prazo | >0 = quantos min atrasou
-  indicador_atraso     SMALLINT NOT NULL, -- 0 = pontual | 1 = atrasado  ← TARGET ML
-
-  CONSTRAINT chk_fato_volumes  CHECK (quantidade_volumes >= 0),
-  CONSTRAINT chk_fato_peso     CHECK (peso_total_kg > 0),
-  CONSTRAINT chk_fato_dist     CHECK (distancia_km > 0),
-  CONSTRAINT chk_fato_testamp  CHECK (tempo_estimado_min > 0),
-  CONSTRAINT chk_fato_frete    CHECK (valor_frete > 0),
-  CONSTRAINT chk_fato_atraso   CHECK (indicador_atraso IN (0, 1))
+  indicador_atraso     SMALLINT NOT NULL  -- 0 = pontual | 1 = atrasado  ← TARGET ML (valores: 0 ou 1)
 )
 USING DELTA
 COMMENT 'Fato entregas — granularidade: 1 linha por entrega. indicador_atraso é o target do modelo de predição.';
@@ -573,7 +515,8 @@ INSERT INTO lodlog_dw.fato_entregas VALUES
 -- OLTP: buscas por status e data de entrega
 OPTIMIZE lodlog_op.entrega      ZORDER BY (status_entrega, data_saida);
 OPTIMIZE lodlog_op.pedido       ZORDER BY (cliente_id, status_pedido);
-OPTIMIZE lodlog_op.telemetria   ZORDER BY (veiculo_id, timestamp_evento);
+-- somente depois que tiver dados
+--OPTIMIZE lodlog_op.telemetria   ZORDER BY (data_evento, veiculo_id);
 
 -- DW: queries de agregação por tempo, CD e cliente
 OPTIMIZE lodlog_dw.fato_entregas ZORDER BY (sk_data_saida, sk_cd_origem, indicador_atraso);
