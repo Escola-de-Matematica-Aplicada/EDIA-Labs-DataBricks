@@ -4,6 +4,7 @@
 # Uso: Workspace > Import > selecione este arquivo (.py) > Run All
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC # LODLog — Geração de Dados Sintéticos & ETL · LAB 3
 # MAGIC
@@ -56,6 +57,7 @@ rng = np.random.default_rng(SEED)
 print("Gerando dados LODLog para o LAB 3...")
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Parte 1: Dados Mestre (Dimensionais Operacionais)
 
@@ -462,6 +464,7 @@ for estoque in df_estoque_op.itertuples():
 df_movimentacao_estoque_op = pd.DataFrame(movimentacoes_op)
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Parte 2: Dados Transacionais (Pedidos e Entregas)
 
@@ -611,7 +614,7 @@ for i in range(N_ENTREGAS):
     
     # Data real de entrega = hora_saida + tempo_real_min
     data_saida_dt = datetime.strptime(hora_saida_str, "%Y-%m-%d %H:%M:%S")
-    data_entrega_real_dt = data_saida_dt + timedelta(minutes=tempo_real_min[i])
+    data_entrega_real_dt = data_saida_dt + timedelta(minutes=int(tempo_real_min[i]))
     
     # Status: Entregue (com alguams exceções para variação)
     if atraso[i] > 300:  # Muito atrasado
@@ -724,6 +727,7 @@ for i, entrega in df_entrega_op.iterrows():
 df_telemetria_op = pd.DataFrame(telemetrias_op)
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Parte 3: SALVAR DADOS OPERACIONAIS (lodlog_op)
 
@@ -837,6 +841,7 @@ _save_op(df_telemetria_op, "telemetria", {
 print("\nTabelas operacionais salvo com sucesso!")
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Parte 4: ETL para lodlog_dw (Star Schema)
 
@@ -1051,6 +1056,7 @@ _save_dw(df_dim_motorista_dw, "dim_motorista", {
 })
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Parte 5: FATO_ENTREGAS com Anomalias
 
@@ -1182,6 +1188,9 @@ print(f"fato_entregas total: {len(df_fato_entregas_dw):,} linhas ({len(df_anomal
 # SALVAR FATO_ENTREGAS
 # ─────────────────────────────────────────────────────────────
 
+# Convert pedido_id to string to handle mixed integer/string values from anomalies
+df_fato_entregas_dw["pedido_id"] = df_fato_entregas_dw["pedido_id"].astype(str)
+
 _save_dw(df_fato_entregas_dw, "fato_entregas", {
     "sk_entrega": "long",
     "sk_data": IntegerType(),
@@ -1190,7 +1199,7 @@ _save_dw(df_fato_entregas_dw, "fato_entregas", {
     "sk_veiculo": "long",
     "sk_motorista": "long",
     "entrega_id": "long",
-    "pedido_id": "long",
+    "pedido_id": "string",
     "data_entrega": DateType(),
     "hora_saida": TimestampType(),
     "quantidade_volumes": IntegerType(),
@@ -1208,6 +1217,7 @@ _save_dw(df_fato_entregas_dw, "fato_entregas", {
 })
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Parte 6: OPTIMIZE e Validação
 
@@ -1234,8 +1244,7 @@ spark.sql("OPTIMIZE lodlog_op.pedido ZORDER BY (cliente_id, status_pedido)")
 # MAGIC SELECT 'lodlog_op', 'motorista', COUNT(*) FROM lodlog_op.motorista UNION ALL
 # MAGIC SELECT 'lodlog_op', 'centro_distribuicao', COUNT(*) FROM lodlog_op.centro_distribuicao UNION ALL
 # MAGIC SELECT 'lodlog_op', 'pedido', COUNT(*) FROM lodlog_op.pedido UNION ALL
-# MAGIC SELECT 'lodlog_op', 'entrega', COUNT(*) FROM lodlog_op.entrega UNION ALL
-# MAGIC SELECT 'lodlog_op', 'fato_entregas', COUNT(*) FROM lodlog_op.fato_entregas;
+# MAGIC SELECT 'lodlog_op', 'entrega', COUNT(*) FROM lodlog_op.entrega;
 
 # COMMAND ----------
 
@@ -1252,18 +1261,16 @@ spark.sql("OPTIMIZE lodlog_op.pedido ZORDER BY (cliente_id, status_pedido)")
 
 # MAGIC %md
 # MAGIC ### Setup Concluído!
-# MAGIC 
+# MAGIC
 # MAGIC Execute os comandos a seguir para validar:
 # MAGIC ```sql
 # MAGIC USE lodlog_dw;
 # MAGIC SELECT COUNT(*), COUNT(DISTINCT sk_entrega) FROM fato_entregas;
 # MAGIC -- Deve retornar ~50.000 linhas e ~50.000 sk_entrega únicos (com duplicatas entre as anomalias)
 # MAGIC ```
-# MAGIC 
+# MAGIC
 # MAGIC **Anomalias propositais no fato_entregas (para Parte 4 do LAB 3):**
 # MAGIC - 100 linhas duplicadas (mesmo pedido_id + data_entrega)
 # MAGIC - 50 linhas com valores negativos (distancia_km, peso_total_kg ou custo_combustivel)
 # MAGIC - 30 linhas com outliers em minutos_atraso (atrasos > 1000 min ou adiantamentos < -480 min)
 # MAGIC - 50 linhas com FK quebrada (sk_cliente 201-300 não existem em dim_cliente)
-
-# COMMAND ----------
