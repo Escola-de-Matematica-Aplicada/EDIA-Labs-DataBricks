@@ -1118,6 +1118,28 @@ print(f"  ✓ lodlog_dw.fato_entregas (base): {n_base:,} linhas")
 # via sampling, depois inserimos via INSERT INTO (modo append).
 
 df_fato_clean = spark.table("lodlog_dw.fato_entregas").toPandas()
+# Colunas DECIMAL voltam como Python Decimal (dtype object) após toPandas().
+# Cast para float evita PySparkTypeError na conversão Arrow ao fazer o append.
+_decimal_cols = [
+    "peso_total_kg", "distancia_km", "custo_combustivel",
+    "custo_pedagio", "valor_frete", "multa_atraso", "temperatura_media_motor",
+]
+for _c in _decimal_cols:
+    if _c in df_fato_clean.columns:
+        df_fato_clean[_c] = df_fato_clean[_c].astype(float)
+
+# Colunas INT (não BIGINT) voltam como int64 no pandas, que o Spark infere
+# como LongType. Delta recusa mergeSchema INT ↔ Long com DELTA_FAILED_TO_MERGE_FIELDS.
+# Cast para int32 restaura o mapeamento correto pandas int32 → Spark IntegerType.
+# NOTA: quantidade_volumes é LONG na tabela, não INT, então não deve ser convertido.
+_int32_cols = [
+    "sk_data", "sk_cat_atraso", "tempo_estimado_min",
+    "tempo_real_min", "minutos_atraso", "indicador_atraso",
+]
+for _c in _int32_cols:
+    if _c in df_fato_clean.columns:
+        df_fato_clean[_c] = df_fato_clean[_c].astype("int32")
+
 sk_next = int(df_fato_clean["entrega_id"].max()) + 1
 
 anomalias = []
@@ -1166,11 +1188,31 @@ for _, row in _sample(50).iterrows():
 df_anomalias = pd.DataFrame(anomalias)
 df_anomalias["pedido_id"] = df_anomalias["pedido_id"].astype(str)
 
+# Criar DataFrame Spark e garantir tipos exatos compatíveis com a tabela
+from pyspark.sql.types import IntegerType, DecimalType, DoubleType
+
+df_spark_anomalias = spark.createDataFrame(df_anomalias)
+
+# Cast explícito para IntegerType nas colunas INT (não LONG)
+for col_name in ["sk_data", "sk_cat_atraso", "tempo_estimado_min",
+                 "tempo_real_min", "minutos_atraso", "indicador_atraso"]:
+    df_spark_anomalias = df_spark_anomalias.withColumn(col_name, F.col(col_name).cast(IntegerType()))
+
+# Cast explícito para DecimalType com precisão correta
+df_spark_anomalias = (df_spark_anomalias
+    .withColumn("peso_total_kg", F.col("peso_total_kg").cast(DecimalType(10, 2)))
+    .withColumn("distancia_km", F.col("distancia_km").cast(DecimalType(10, 2)))
+    .withColumn("custo_combustivel", F.col("custo_combustivel").cast(DecimalType(12, 2)))
+    .withColumn("custo_pedagio", F.col("custo_pedagio").cast(DecimalType(12, 2)))
+    .withColumn("valor_frete", F.col("valor_frete").cast(DecimalType(12, 2)))
+    .withColumn("multa_atraso", F.col("multa_atraso").cast(DecimalType(12, 2)))
+    .withColumn("temperatura_media_motor", F.col("temperatura_media_motor").cast(DoubleType()))
+)
+
 # Append das anomalias ao fato (Delta não força PK — duplicatas ficam visíveis)
-(spark.createDataFrame(df_anomalias)
+(df_spark_anomalias
      .write.format("delta")
      .mode("append")
-     .option("mergeSchema", "true")
      .saveAsTable("lodlog_dw.fato_entregas"))
 
 n_final = spark.table("lodlog_dw.fato_entregas").count()
