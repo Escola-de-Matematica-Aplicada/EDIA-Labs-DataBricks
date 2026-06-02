@@ -18,7 +18,7 @@
 --    a tabela NÃO está em 3FN. Os alunos devem normalizar para
 --    3FN como exercício do LAB 2 (Atividade 2.2).
 --
--- 2) Nova coluna `kpi_categoria_atraso` na tabela `entrega`
+-- 2) Nova coluna `kpi_cat_atraso` na tabela `entrega`
 --    (operacional) e na `fato_entregas` (DW). Esse atributo é
 --    uma classificação derivada de `minutos_atraso`:
 --      'Adiantado'       (< 0)
@@ -27,7 +27,7 @@
 --      'Atraso Moderado' (61 a 240)
 --      'Atraso Crítico'  (> 240)
 --
--- 3) Nova mini-dimensão `lodlog_dw.dim_categoria_atraso` no DW.
+-- 3) Nova mini-dimensão `lodlog_dw.dim_cat_atraso` no DW.
 --    É a "casa" do KPI no Star Schema — boa prática de modelagem
 --    dimensional (Kimball: minidimension para atributos de baixa
 --    cardinalidade usados em filtros de BI).
@@ -307,10 +307,10 @@ CREATE TABLE IF NOT EXISTS lodlog_op.entrega (
   -- ⭐ NOVO ATRIBUTO v2 — KPI de pontualidade
   -- Derivado de minutos_atraso (calculado na aplicação/ETL).
   -- Valores: 'Adiantado' | 'No Prazo' | 'Atraso Leve' | 'Atraso Moderado' | 'Atraso Crítico'
-  kpi_categoria_atraso  STRING        NOT NULL
+  kpi_cat_atraso  STRING        NOT NULL
 )
 USING DELTA
-COMMENT 'Tabela ENTREGA em 2FN (proposital). Tem dependências transitivas — alunos devem normalizar para 3FN. Inclui kpi_categoria_atraso (NOVO v2).';
+COMMENT 'Tabela ENTREGA em 2FN (proposital). Tem dependências transitivas — alunos devem normalizar para 3FN. Inclui kpi_cat_atraso (NOVO v2).';
 
 
 -- ================================================================
@@ -408,8 +408,8 @@ USING DELTA;
 -- Categoria derivada de minutos_atraso.
 -- Minidimensão = boa prática para atributos de baixa cardinalidade
 -- usados em filtros/agrupamentos de BI. SCD Tipo 1 (estável).
-CREATE TABLE IF NOT EXISTS lodlog_dw.dim_categoria_atraso (
-  sk_categoria_atraso  INT     NOT NULL,  -- PK surrogate
+CREATE TABLE IF NOT EXISTS lodlog_dw.dim_cat_atraso (
+  sk_cat_atraso  INT     NOT NULL,  -- PK surrogate
   categoria            STRING  NOT NULL,  -- 'Adiantado' | 'No Prazo' | 'Atraso Leve' | 'Atraso Moderado' | 'Atraso Crítico'
   descricao            STRING  NOT NULL,  -- texto explicativo
   limite_inferior_min  INT     NOT NULL,  -- ex. -9999, 0, 1, 61, 241
@@ -431,7 +431,7 @@ CREATE TABLE IF NOT EXISTS lodlog_dw.fato_entregas (
   sk_cd_origem         BIGINT  NOT NULL,  -- FK → dim_centro_distribuicao
   sk_veiculo           BIGINT  NOT NULL,  -- FK → dim_veiculo
   sk_motorista         BIGINT  NOT NULL,  -- FK → dim_motorista
-  sk_categoria_atraso  INT     NOT NULL,  -- FK → dim_categoria_atraso  ⭐ NOVO v2
+  sk_cat_atraso  INT     NOT NULL,  -- FK → dim_cat_atraso  ⭐ NOVO v2
   -- Chaves naturais degeneradas (sem dimensão própria, para rastreabilidade)
   entrega_id           BIGINT  NOT NULL,
   pedido_id            BIGINT  NOT NULL,
@@ -453,10 +453,10 @@ CREATE TABLE IF NOT EXISTS lodlog_dw.fato_entregas (
   indicador_atraso     SMALLINT NOT NULL,  -- 0 = pontual | 1 = atrasado  ← TARGET ML (valores: 0 ou 1)
   temperatura_media_motor DECIMAL(6,2),   -- temperatura média do motor (°C)
   -- ⭐ NOVO v2 — KPI replicado do operacional
-  kpi_categoria_atraso STRING  NOT NULL   -- 'Adiantado' | 'No Prazo' | 'Atraso Leve' | 'Atraso Moderado' | 'Atraso Crítico'
+  kpi_cat_atraso STRING  NOT NULL   -- 'Adiantado' | 'No Prazo' | 'Atraso Leve' | 'Atraso Moderado' | 'Atraso Crítico'
 )
 USING DELTA
-COMMENT 'Fato entregas — granularidade: 1 linha por entrega. indicador_atraso é o target do modelo de predição. v2 inclui sk_categoria_atraso (FK) e kpi_categoria_atraso (atributo replicado do op).';
+COMMENT 'Fato entregas — granularidade: 1 linha por entrega. indicador_atraso é o target do modelo de predição. v2 inclui sk_cat_atraso (FK) e kpi_cat_atraso (atributo replicado do op).';
 
 
 -- ================================================================
@@ -476,9 +476,9 @@ COMMENT 'Fato entregas — granularidade: 1 linha por entrega. indicador_atraso 
 
 -- SELECT 'lodlog_op.entrega' AS tabela, COUNT(*) AS linhas
 -- FROM lodlog_op.entrega
--- WHERE kpi_categoria_atraso IS NOT NULL;
+-- WHERE kpi_cat_atraso IS NOT NULL;
 -- -- Deve retornar ~50.000
 
--- SELECT 'lodlog_dw.dim_categoria_atraso' AS tabela, COUNT(*) AS linhas
--- FROM lodlog_dw.dim_categoria_atraso;
+-- SELECT 'lodlog_dw.dim_cat_atraso' AS tabela, COUNT(*) AS linhas
+-- FROM lodlog_dw.dim_cat_atraso;
 -- -- Deve retornar 5

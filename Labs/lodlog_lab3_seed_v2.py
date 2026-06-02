@@ -11,15 +11,15 @@
 #    para que ela fique em 2FN (tem dependências transitivas).
 #    Os alunos devem normalizar até 3FN no LAB 2 Atividade 2.2.
 #
-# 2) Nova coluna kpi_categoria_atraso na entrega (operacional) —
+# 2) Nova coluna kpi_cat_atraso na entrega (operacional) —
 #    derivada de minutos_atraso, com 5 valores categóricos.
 #
-# 3) Nova mini-dimensão lodlog_dw.dim_categoria_atraso (Kimball) —
+# 3) Nova mini-dimensão lodlog_dw.dim_cat_atraso (Kimball) —
 #    SCD Tipo 1, com 5 registros. SKEY replicado na fato_entregas.
 #
 # 4) A fato_entregas ganhou duas colunas novas:
-#       - sk_categoria_atraso (FK → dim_categoria_atraso)
-#       - kpi_categoria_atraso (atributo replicado, mesmo valor da op)
+#       - sk_cat_atraso (FK → dim_cat_atraso)
+#       - kpi_cat_atraso (atributo replicado, mesmo valor da op)
 
 # COMMAND ----------
 
@@ -46,7 +46,7 @@
 # MAGIC | `movimentacao_estoque` | ~10K | Movimentações |
 # MAGIC | `pedido` | ~50K | Pedidos de entrega |
 # MAGIC | `item_pedido` | ~150K | Itens dos pedidos |
-# MAGIC | `entrega` | ~50K | **Entregas em 2FN (proposital)** com kpi_categoria_atraso |
+# MAGIC | `entrega` | ~50K | **Entregas em 2FN (proposital)** com kpi_cat_atraso |
 # MAGIC
 # MAGIC ### lodlog_dw (Data Warehouse - Star Schema):
 # MAGIC | Tabela | Linhas | Descrição |
@@ -56,8 +56,8 @@
 # MAGIC | `dim_veiculo` | 50 | Veículos (SCD Tipo 2) |
 # MAGIC | `dim_motorista` | 100 | Motoristas (SCD Tipo 2) |
 # MAGIC | `dim_centro_distribuicao` | 5 | Centros (SCD Tipo 1) |
-# MAGIC | `dim_categoria_atraso` | 5 | **⭐ NOVA v2** — minidimensão do KPI |
-# MAGIC | `fato_entregas` | ~50.000 | Entregas (com sk_categoria_atraso + kpi) |
+# MAGIC | `dim_cat_atraso` | 5 | **⭐ NOVA v2** — minidimensão do KPI |
+# MAGIC | `fato_entregas` | ~50.000 | Entregas (com sk_cat_atraso + kpi) |
 # MAGIC
 # MAGIC > **Spoiler para o professor:** as anomalias da Parte 4 estão documentadas ao final do notebook.
 
@@ -731,7 +731,7 @@ for i in range(N_ENTREGAS):
         "status_entrega": status_entrega,
 
         # ⭐ v2: KPI categoria_atraso
-        "kpi_categoria_atraso": _kpi_cat,
+        "kpi_cat_atraso": _kpi_cat,
     })
     
     # Itens do pedido: 1-5 itens por pedido
@@ -926,7 +926,7 @@ spark.sql("USE lodlog_dw")
 
 dim_cat_atraso_dw = [
     {
-        "sk_categoria_atraso": 1,
+        "sk_cat_atraso": 1,
         "categoria":            "Adiantado",
         "descricao":            "Entrega concluída antes do prazo previsto",
         "limite_inferior_min":  -99999,
@@ -935,7 +935,7 @@ dim_cat_atraso_dw = [
         "ordem":                1,
     },
     {
-        "sk_categoria_atraso": 2,
+        "sk_cat_atraso": 2,
         "categoria":            "No Prazo",
         "descricao":            "Entrega concluída exatamente no prazo previsto",
         "limite_inferior_min":  0,
@@ -944,7 +944,7 @@ dim_cat_atraso_dw = [
         "ordem":                2,
     },
     {
-        "sk_categoria_atraso": 3,
+        "sk_cat_atraso": 3,
         "categoria":            "Atraso Leve",
         "descricao":            "Atraso de até 60 minutos — dentro de margem tolerável",
         "limite_inferior_min":  1,
@@ -953,7 +953,7 @@ dim_cat_atraso_dw = [
         "ordem":                3,
     },
     {
-        "sk_categoria_atraso": 4,
+        "sk_cat_atraso": 4,
         "categoria":            "Atraso Moderado",
         "descricao":            "Atraso entre 61 e 240 minutos — impacta SLA contratual",
         "limite_inferior_min":  61,
@@ -962,7 +962,7 @@ dim_cat_atraso_dw = [
         "ordem":                4,
     },
     {
-        "sk_categoria_atraso": 5,
+        "sk_cat_atraso": 5,
         "categoria":            "Atraso Crítico",
         "descricao":            "Atraso acima de 240 minutos — pode gerar multa e perda de cliente",
         "limite_inferior_min":  241,
@@ -986,9 +986,9 @@ def _save_dw(df_pd, nome, tipo_cast=None):
     n = spark.table(f"lodlog_dw.{nome}").count()
     print(f"  ✓ lodlog_dw.{nome}: {n:,} linhas")
 
-# Salvar dim_categoria_atraso (v2)
-_save_dw(df_dim_cat_atraso_dw, "dim_categoria_atraso", {
-    "sk_categoria_atraso": IntegerType(),
+# Salvar dim_cat_atraso (v2)
+_save_dw(df_dim_cat_atraso_dw, "dim_cat_atraso", {
+    "sk_cat_atraso": IntegerType(),
     "limite_inferior_min": IntegerType(),
     "limite_superior_min": IntegerType(),
     "sla_violado": "boolean",
@@ -1220,7 +1220,7 @@ for i, entrega in df_entrega_op.iterrows():
     itens = df_item_pedido_op[df_item_pedido_op["pedido_id"] == entrega["pedido_id"]]
     peso_total = itens["peso_total_kg"].sum()
 
-    # v2: mapear kpi_categoria_atraso a partir do minutos_atraso calculado
+    # v2: mapear kpi_cat_atraso a partir do minutos_atraso calculado
     if minutos_atraso < 0:
         _kpi_fato = "Adiantado"
         _sk_cat_atraso = 1
@@ -1261,8 +1261,8 @@ for i, entrega in df_entrega_op.iterrows():
         "indicador_atraso": indicador_atraso,
         "temperatura_media_motor": round(random.uniform(85, 105), 2),
         # v2: minidimensão categoria_atraso + atributo replicado
-        "sk_cat...raso": _sk_cat_atraso,
-        "kpi_categoria_atraso": _kpi_fato,
+        "sk_cat_atraso": _sk_cat_atraso,
+        "kpi_cat_atraso": _kpi_fato,
     })
 
 df_fato_clean = pd.DataFrame(fato_data)
@@ -1360,8 +1360,8 @@ _save_dw(df_fato_entregas_dw, "fato_entregas", {
     "indicador_atraso": "int",
     "temperatura_media_motor": DecimalType(6, 2),
     # v2: minidimensão categoria_atraso
-    "sk_cat...raso": IntegerType(),
-    "kpi_categoria_atraso": "string"
+    "sk_cat_atraso": IntegerType(),
+    "kpi_cat_atraso": "string"
 })
 
 # COMMAND ----------
@@ -1373,9 +1373,9 @@ _save_dw(df_fato_entregas_dw, "fato_entregas", {
 
 # Otimizar tabelas com ZORDER
 print("\nOtimizando tabelas...")
-spark.sql("OPTIMIZE lodlog_dw.fato_entregas ZORDER BY (sk_data, sk_cd_origem, indicador_atraso, sk_cat...raso)")
+spark.sql("OPTIMIZE lodlog_dw.fato_entregas ZORDER BY (sk_data, sk_cd_origem, indicador_atraso, sk_cat_atraso)")
 spark.sql("OPTIMIZE lodlog_dw.dim_tempo ZORDER BY (sk_tempo)")
-spark.sql("OPTIMIZE lodlog_dw.dim_categoria_atraso ZORDER BY (sk_cat...raso)")
+spark.sql("OPTIMIZE lodlog_dw.dim_cat_atraso ZORDER BY (sk_cat_atraso)")
 spark.sql("OPTIMIZE lodlog_op.entrega ZORDER BY (status_entrega, data_saida)")
 spark.sql("OPTIMIZE lodlog_op.pedido ZORDER BY (cliente_id, status_pedido)")
 
