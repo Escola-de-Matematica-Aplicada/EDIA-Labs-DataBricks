@@ -1,25 +1,32 @@
 # Databricks notebook source
-# Importar este arquivo no Databricks como notebook Python e executar UMA VEZ antes do LAB 2.
-# File: lodlog_lab3_seed_v2.py
-# Uso: Workspace > Import > selecione este arquivo (.py) > Run All
-#
-# ════════════════════════════════════════════════════════════════
-# O QUE MUDA NA v2 (junho/2026) — em relação ao seed original
-# ════════════════════════════════════════════════════════════════
-# 1) A tabela lodlog_op.entrega é gerada com COLUNAS REDUNDANTES
-#    (cliente_*, veiculo_*, motorista_*, cd_origem_*) — proposital
-#    para que ela fique em 2FN (tem dependências transitivas).
-#    Os alunos devem normalizar até 3FN no LAB 2 Atividade 2.2.
-#
-# 2) Nova coluna kpi_cat_atraso na entrega (operacional) —
-#    derivada de minutos_atraso, com 5 valores categóricos.
-#
-# 3) Nova mini-dimensão lodlog_dw.dim_cat_atraso (Kimball) —
-#    SCD Tipo 1, com 5 registros. SKEY replicado na fato_entregas.
-#
-# 4) A fato_entregas ganhou duas colunas novas:
-#       - sk_cat_atraso (FK → dim_cat_atraso)
-#       - kpi_cat_atraso (atributo replicado, mesmo valor da op)
+# /// script
+# [tool.databricks.environment]
+# environment_version = "2"
+# ///
+# MAGIC %sql
+# MAGIC /*
+# MAGIC # Importar este arquivo no Databricks como notebook Python e executar UMA VEZ antes do LAB 2.
+# MAGIC # File: lodlog_lab3_seed_v2.py
+# MAGIC # Uso: Escolher "Serverless" --> "Run all"
+# MAGIC #
+# MAGIC # ════════════════════════════════════════════════════════════════
+# MAGIC # O QUE MUDA NA v2 (junho/2026) — em relação ao seed original
+# MAGIC # ════════════════════════════════════════════════════════════════
+# MAGIC # 1) A tabela lodlog_op.entrega é gerada com COLUNAS REDUNDANTES
+# MAGIC #    (cliente_*, veiculo_*, motorista_*, cd_origem_*) — proposital
+# MAGIC #    para que ela fique em 2FN (tem dependências transitivas).
+# MAGIC #    Os alunos devem normalizar até 3FN no LAB 2 Atividade 2.2.
+# MAGIC #
+# MAGIC # 2) Nova coluna kpi_cat_atraso na entrega (operacional) —
+# MAGIC #    derivada de minutos_atraso, com 5 valores categóricos.
+# MAGIC #
+# MAGIC # 3) Nova mini-dimensão lodlog_dw.dim_cat_atraso (Kimball) —
+# MAGIC #    SCD Tipo 1, com 5 registros. SKEY replicado na fato_entregas.
+# MAGIC #
+# MAGIC # 4) A fato_entregas ganhou duas colunas novas:
+# MAGIC #       - sk_cat_atraso (FK → dim_cat_atraso)
+# MAGIC #       - kpi_cat_atraso (atributo replicado, mesmo valor da op)
+# MAGIC */
 
 # COMMAND ----------
 
