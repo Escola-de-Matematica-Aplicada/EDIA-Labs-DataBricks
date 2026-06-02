@@ -1,18 +1,36 @@
 # Databricks notebook source
-# Importar este arquivo no Databricks como notebook Python e executar UMA VEZ antes do LAB 3.
-# File: lodlog_lab3_seed.py
+# Importar este arquivo no Databricks como notebook Python e executar UMA VEZ antes do LAB 2.
+# File: lodlog_lab3_seed_v2.py
 # Uso: Workspace > Import > selecione este arquivo (.py) > Run All
+#
+# ════════════════════════════════════════════════════════════════
+# O QUE MUDA NA v2 (junho/2026) — em relação ao seed original
+# ════════════════════════════════════════════════════════════════
+# 1) A tabela lodlog_op.entrega é gerada com COLUNAS REDUNDANTES
+#    (cliente_*, veiculo_*, motorista_*, cd_origem_*) — proposital
+#    para que ela fique em 2FN (tem dependências transitivas).
+#    Os alunos devem normalizar até 3FN no LAB 2 Atividade 2.2.
+#
+# 2) Nova coluna kpi_categoria_atraso na entrega (operacional) —
+#    derivada de minutos_atraso, com 5 valores categóricos.
+#
+# 3) Nova mini-dimensão lodlog_dw.dim_categoria_atraso (Kimball) —
+#    SCD Tipo 1, com 5 registros. SKEY replicado na fato_entregas.
+#
+# 4) A fato_entregas ganhou duas colunas novas:
+#       - sk_categoria_atraso (FK → dim_categoria_atraso)
+#       - kpi_categoria_atraso (atributo replicado, mesmo valor da op)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # LODLog — Geração de Dados Sintéticos & ETL · LAB 3
+# MAGIC # LODLog — Geração de Dados Sintéticos & ETL · LAB 2 (v2)
 # MAGIC
-# MAGIC Execute este notebook **uma única vez** antes do LAB 3.
+# MAGIC Execute este notebook **uma única vez** antes do LAB 2.
 # MAGIC
 # MAGIC **Tabelas populadas:**
 # MAGIC
-# MAGIC ### lodlog_op (Operacional - 3NF):
+# MAGIC ### lodlog_op (Operacional):
 # MAGIC | Tabela | Linhas | Descrição |
 # MAGIC |--------|--------|-----------|
 # MAGIC | `cliente` | 200 | Clientes LODLog |
@@ -21,14 +39,14 @@
 # MAGIC | `veiculo` | 50 | Frota de veículos |
 # MAGIC | `motorista` | 100 | Motoristas |
 # MAGIC | `manutencao` | ~220 | Histórico de manutenção |
-# MAGIC | `telemetria` | ~100K | Eventos IoT (simplificado) |
+# MAGIC | `telemetria` | ~50K | Eventos IoT (simplificado) |
 # MAGIC | `centro_distribuicao` | 5 | Centros de distribuição |
 # MAGIC | `produto` | 50 | Catálogo de produtos |
 # MAGIC | `estoque` | 250 | Posições de estoque |
 # MAGIC | `movimentacao_estoque` | ~10K | Movimentações |
 # MAGIC | `pedido` | ~50K | Pedidos de entrega |
 # MAGIC | `item_pedido` | ~150K | Itens dos pedidos |
-# MAGIC | `entrega` | ~50K | Entregas realizadas |
+# MAGIC | `entrega` | ~50K | **Entregas em 2FN (proposital)** com kpi_categoria_atraso |
 # MAGIC
 # MAGIC ### lodlog_dw (Data Warehouse - Star Schema):
 # MAGIC | Tabela | Linhas | Descrição |
@@ -38,7 +56,8 @@
 # MAGIC | `dim_veiculo` | 50 | Veículos (SCD Tipo 2) |
 # MAGIC | `dim_motorista` | 100 | Motoristas (SCD Tipo 2) |
 # MAGIC | `dim_centro_distribuicao` | 5 | Centros (SCD Tipo 1) |
-# MAGIC | `fato_entregas` | ~50.000 | Entregas com anomalias |
+# MAGIC | `dim_categoria_atraso` | 5 | **⭐ NOVA v2** — minidimensão do KPI |
+# MAGIC | `fato_entregas` | ~50.000 | Entregas (com sk_categoria_atraso + kpi) |
 # MAGIC
 # MAGIC > **Spoiler para o professor:** as anomalias da Parte 4 estão documentadas ao final do notebook.
 
@@ -653,11 +672,54 @@ for i in range(N_ENTREGAS):
     })
     
     # Entrega
+    # v2: calcular KPI categoria_atraso (derivado de minutos_atraso)
+    _min_atraso = int(atraso[i])
+    if _min_atraso < 0:
+        _kpi_cat = "Adiantado"
+    elif _min_atraso == 0:
+        _kpi_cat = "No Prazo"
+    elif _min_atraso <= 60:
+        _kpi_cat = "Atraso Leve"
+    elif _min_atraso <= 240:
+        _kpi_cat = "Atraso Moderado"
+    else:
+        _kpi_cat = "Atraso Crítico"
+
+    # v2: buscar dados redundantes (proposital, 2FN) das entidades relacionadas
+    _cli = df_cliente_op.iloc[sk_cliente - 1]
+    _vei = df_veiculo_op.iloc[sk_veiculo - 1]
+    _mot = df_motorista_op.iloc[sk_motorista - 1]
+    _cd  = df_centro_distribuicao_op.iloc[sk_cd - 1]
+
     entregas_op.append({
         "entrega_id": entrega_id,
         "pedido_id": pedido_id,
         "veiculo_id": sk_veiculo,
         "motorista_id": sk_motorista,
+
+        # ▓ v2: dados redundantes do cliente (dependência transitiva)
+        "cliente_id":            int(sk_cliente),
+        "cliente_cnpj":          _cli["cnpj"],
+        "cliente_razao_social":  _cli["razao_social"],
+        "cliente_segmento":      _cli["segmento"],
+
+        # ▓ v2: dados redundantes do veículo
+        "veiculo_placa":         _vei["placa"],
+        "veiculo_modelo":        _vei["modelo"],
+        "veiculo_fabricante":    _vei["fabricante"],
+        "veiculo_capacidade_kg": float(_vei["capacidade_kg"]),
+
+        # ▓ v2: dados redundantes do motorista
+        "motorista_nome":        _mot["nome_completo"],
+        "motorista_cnh":         _mot["cnh"],
+        "motorista_categoria":   _mot["categoria_cnh"],
+
+        # ▓ v2: dados redundantes do CD origem
+        "cd_origem_id":          int(sk_cd),
+        "cd_origem_codigo":      _cd["codigo"],
+        "cd_origem_nome":        _cd["nome"],
+        "cd_origem_uf":          _cd["uf"],
+
         "data_saida": hora_saida_str,
         "data_entrega_prevista": f"{prazo_entrega_dt.strftime('%Y-%m-%d %H:%M:%S')}",
         "data_entrega_real": data_entrega_real_dt.strftime("%Y-%m-%d %H:%M:%S"),
@@ -667,6 +729,9 @@ for i in range(N_ENTREGAS):
         "valor_frete": round(float(valor_frete[i]), 2),
         "multa_atraso": round(float(multa_atraso[i]), 2),
         "status_entrega": status_entrega,
+
+        # ⭐ v2: KPI categoria_atraso
+        "kpi_categoria_atraso": _kpi_cat,
     })
     
     # Itens do pedido: 1-5 itens por pedido
@@ -819,7 +884,9 @@ _save_op(df_entrega_op, "entrega", {
     "custo_combustivel": DecimalType(12, 2),
     "custo_pedagio": DecimalType(12, 2),
     "valor_frete": DecimalType(12, 2),
-    "multa_atraso": DecimalType(12, 2)
+    "multa_atraso": DecimalType(12, 2),
+    # v2: colunas redundantes (2FN) + KPI
+    "veiculo_capacidade_kg": DecimalType(10, 2)
 })
 _save_op(df_item_pedido_op, "item_pedido", {
     "peso_total_kg": DecimalType(10, 2)
@@ -848,7 +915,7 @@ print("\nTabelas operacionais salvo com sucesso!")
 # COMMAND ----------
 
 # ─────────────────────────────────────────────────────────────
-# DIM_TEMPO — já gerada
+# DIM_CATEGORIA_ATRASO — NOVA v2 (minidimensão Kimball, SCD Tipo 1)
 # ─────────────────────────────────────────────────────────────
 
 print("\nProcessando ETL para lodlog_dw...")
@@ -856,6 +923,55 @@ print("\nProcessando ETL para lodlog_dw...")
 # Criar database se não existir
 spark.sql("CREATE DATABASE IF NOT EXISTS lodlog_dw")
 spark.sql("USE lodlog_dw")
+
+dim_cat_atraso_dw = [
+    {
+        "sk_categoria_atraso": 1,
+        "categoria":            "Adiantado",
+        "descricao":            "Entrega concluída antes do prazo previsto",
+        "limite_inferior_min":  -99999,
+        "limite_superior_min":  -1,
+        "sla_violado":          False,
+        "ordem":                1,
+    },
+    {
+        "sk_categoria_atraso": 2,
+        "categoria":            "No Prazo",
+        "descricao":            "Entrega concluída exatamente no prazo previsto",
+        "limite_inferior_min":  0,
+        "limite_superior_min":  0,
+        "sla_violado":          False,
+        "ordem":                2,
+    },
+    {
+        "sk_categoria_atraso": 3,
+        "categoria":            "Atraso Leve",
+        "descricao":            "Atraso de até 60 minutos — dentro de margem tolerável",
+        "limite_inferior_min":  1,
+        "limite_superior_min":  60,
+        "sla_violado":          True,
+        "ordem":                3,
+    },
+    {
+        "sk_categoria_atraso": 4,
+        "categoria":            "Atraso Moderado",
+        "descricao":            "Atraso entre 61 e 240 minutos — impacta SLA contratual",
+        "limite_inferior_min":  61,
+        "limite_superior_min":  240,
+        "sla_violado":          True,
+        "ordem":                4,
+    },
+    {
+        "sk_categoria_atraso": 5,
+        "categoria":            "Atraso Crítico",
+        "descricao":            "Atraso acima de 240 minutos — pode gerar multa e perda de cliente",
+        "limite_inferior_min":  241,
+        "limite_superior_min":  None,
+        "sla_violado":          True,
+        "ordem":                5,
+    },
+]
+df_dim_cat_atraso_dw = pd.DataFrame(dim_cat_atraso_dw)
 
 def _save_dw(df_pd, nome, tipo_cast=None):
     spark.sql(f"DROP TABLE IF EXISTS lodlog_dw.{nome}")
@@ -869,6 +985,15 @@ def _save_dw(df_pd, nome, tipo_cast=None):
          .saveAsTable(f"lodlog_dw.{nome}"))
     n = spark.table(f"lodlog_dw.{nome}").count()
     print(f"  ✓ lodlog_dw.{nome}: {n:,} linhas")
+
+# Salvar dim_categoria_atraso (v2)
+_save_dw(df_dim_cat_atraso_dw, "dim_categoria_atraso", {
+    "sk_categoria_atraso": IntegerType(),
+    "limite_inferior_min": IntegerType(),
+    "limite_superior_min": IntegerType(),
+    "sla_violado": "boolean",
+    "ordem": IntegerType(),
+})
 
 # Salvar dim_tempo
 _save_dw(df_dim_tempo_dw, "dim_tempo", {
@@ -1090,10 +1215,27 @@ for i, entrega in df_entrega_op.iterrows():
     
     # Se minutos_atraso for negativo, é adiantado
     indicador_atraso = 1 if minutos_atraso > 0 else 0
-    
+
     # Buscar peso total do pedido
     itens = df_item_pedido_op[df_item_pedido_op["pedido_id"] == entrega["pedido_id"]]
     peso_total = itens["peso_total_kg"].sum()
+
+    # v2: mapear kpi_categoria_atraso a partir do minutos_atraso calculado
+    if minutos_atraso < 0:
+        _kpi_fato = "Adiantado"
+        _sk_cat_atraso = 1
+    elif minutos_atraso == 0:
+        _kpi_fato = "No Prazo"
+        _sk_cat_atraso = 2
+    elif minutos_atraso <= 60:
+        _kpi_fato = "Atraso Leve"
+        _sk_cat_atraso = 3
+    elif minutos_atraso <= 240:
+        _kpi_fato = "Atraso Moderado"
+        _sk_cat_atraso = 4
+    else:
+        _kpi_fato = "Atraso Crítico"
+        _sk_cat_atraso = 5
     
     fato_data.append({
         "sk_entrega": i + 1,
@@ -1118,6 +1260,9 @@ for i, entrega in df_entrega_op.iterrows():
         "minutos_atraso": minutos_atraso,
         "indicador_atraso": indicador_atraso,
         "temperatura_media_motor": round(random.uniform(85, 105), 2),
+        # v2: minidimensão categoria_atraso + atributo replicado
+        "sk_cat...raso": _sk_cat_atraso,
+        "kpi_categoria_atraso": _kpi_fato,
     })
 
 df_fato_clean = pd.DataFrame(fato_data)
@@ -1213,7 +1358,10 @@ _save_dw(df_fato_entregas_dw, "fato_entregas", {
     "multa_atraso": DecimalType(12, 2),
     "minutos_atraso": IntegerType(),
     "indicador_atraso": "int",
-    "temperatura_media_motor": DecimalType(6, 2)
+    "temperatura_media_motor": DecimalType(6, 2),
+    # v2: minidimensão categoria_atraso
+    "sk_cat...raso": IntegerType(),
+    "kpi_categoria_atraso": "string"
 })
 
 # COMMAND ----------
@@ -1225,8 +1373,9 @@ _save_dw(df_fato_entregas_dw, "fato_entregas", {
 
 # Otimizar tabelas com ZORDER
 print("\nOtimizando tabelas...")
-spark.sql("OPTIMIZE lodlog_dw.fato_entregas ZORDER BY (sk_data, sk_cd_origem, indicador_atraso)")
+spark.sql("OPTIMIZE lodlog_dw.fato_entregas ZORDER BY (sk_data, sk_cd_origem, indicador_atraso, sk_cat...raso)")
 spark.sql("OPTIMIZE lodlog_dw.dim_tempo ZORDER BY (sk_tempo)")
+spark.sql("OPTIMIZE lodlog_dw.dim_categoria_atraso ZORDER BY (sk_cat...raso)")
 spark.sql("OPTIMIZE lodlog_op.entrega ZORDER BY (status_entrega, data_saida)")
 spark.sql("OPTIMIZE lodlog_op.pedido ZORDER BY (cliente_id, status_pedido)")
 

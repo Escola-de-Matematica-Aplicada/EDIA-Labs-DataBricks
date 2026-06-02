@@ -1,6 +1,6 @@
 -- ================================================================
 -- LODLog Transportes e Distribuição S.A.
--- Modelo de Dados Completo — LAB 2 (Scaffold / Gabarito)
+-- Modelo de Dados Completo — LAB 2 (Scaffold / Gabarito) — VERSÃO 2
 -- Databricks SQL · Delta Lake · Community Edition compatible
 -- ================================================================
 -- COMO USAR:
@@ -8,6 +8,29 @@
 --   2. Cole este script inteiro em uma célula  OU
 --      divida cada bloco em células separadas (recomendado)
 --   3. Execute de cima para baixo
+--
+-- ════════════════════════════════════════════════════════════════
+-- O QUE MUDA NA v2 (junho/2026)
+-- ════════════════════════════════════════════════════════════════
+-- 1) A tabela `lodlog_op.entrega` está propositalmente em 2FN.
+--    Ela carrega colunas redundantes (dados de cliente, veículo,
+--    motorista, CD) que são DEPENDÊNCIAS TRANSITIVAS — ou seja,
+--    a tabela NÃO está em 3FN. Os alunos devem normalizar para
+--    3FN como exercício do LAB 2 (Atividade 2.2).
+--
+-- 2) Nova coluna `kpi_categoria_atraso` na tabela `entrega`
+--    (operacional) e na `fato_entregas` (DW). Esse atributo é
+--    uma classificação derivada de `minutos_atraso`:
+--      'Adiantado'       (< 0)
+--      'No Prazo'        (== 0)
+--      'Atraso Leve'     (1 a 60)
+--      'Atraso Moderado' (61 a 240)
+--      'Atraso Crítico'  (> 240)
+--
+-- 3) Nova mini-dimensão `lodlog_dw.dim_categoria_atraso` no DW.
+--    É a "casa" do KPI no Star Schema — boa prática de modelagem
+--    dimensional (Kimball: minidimension para atributos de baixa
+--    cardinalidade usados em filtros de BI).
 --
 -- Diferenças vs PostgreSQL:
 --   · SCHEMA → DATABASE  (Databricks Community usa Hive Metastore)
@@ -228,22 +251,66 @@ CREATE TABLE IF NOT EXISTS lodlog_op.item_pedido (
 )
 USING DELTA;
 
+-- ════════════════════════════════════════════════════════════════
+-- TABELA ENTREGA — PROPOSITALMENTE EM 2FN
+-- ════════════════════════════════════════════════════════════════
+-- Esta tabela carrega DEPENDÊNCIAS TRANSITIVAS: dados de
+-- cliente, veículo, motorista e CD estão duplicados aqui.
+-- A PK é simples (entrega_id) — então está em 2FN
+-- (1FN + sem dependências parciais), mas tem dependências
+-- transitivas (X → Y → Z) que violam a 3FN.
+--
+-- Exercício LAB 2 — Atividade 2.2: decompor até 3FN.
+-- ════════════════════════════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS lodlog_op.entrega (
-  entrega_id            BIGINT        NOT NULL,
+  -- PK + chaves estrangeiras (originais)
+  entrega_id            BIGINT        NOT NULL,  -- PK
   pedido_id             BIGINT        NOT NULL,  -- FK → pedido
   veiculo_id            BIGINT        NOT NULL,  -- FK → veiculo
   motorista_id          BIGINT        NOT NULL,  -- FK → motorista
+
+  -- ▓▓▓ DADOS REDUNDANTES DO CLIENTE (dependência transitiva) ▓▓▓
+  -- cliente_id determina estes campos. Devem ser removidos na 3FN.
+  cliente_id            BIGINT        NOT NULL,  -- FK → cliente
+  cliente_cnpj          STRING        NOT NULL,  -- redundante
+  cliente_razao_social  STRING        NOT NULL,  -- redundante
+  cliente_segmento      STRING        NOT NULL,  -- redundante
+
+  -- ▓▓▓ DADOS REDUNDANTES DO VEÍCULO (dependência transitiva) ▓▓▓
+  veiculo_placa         STRING        NOT NULL,  -- redundante
+  veiculo_modelo        STRING        NOT NULL,  -- redundante
+  veiculo_fabricante    STRING,                  -- redundante
+  veiculo_capacidade_kg DECIMAL(10,2) NOT NULL,  -- redundante
+
+  -- ▓▓▓ DADOS REDUNDANTES DO MOTORISTA (dependência transitiva) ▓▓▓
+  motorista_nome        STRING        NOT NULL,  -- redundante
+  motorista_cnh         STRING        NOT NULL,  -- redundante
+  motorista_categoria   STRING        NOT NULL,  -- redundante
+
+  -- ▓▓▓ DADOS REDUNDANTES DO CD DE ORIGEM (dependência transitiva) ▓▓▓
+  cd_origem_id          BIGINT        NOT NULL,  -- FK → centro_distribuicao
+  cd_origem_codigo      STRING        NOT NULL,  -- redundante
+  cd_origem_nome        STRING        NOT NULL,  -- redundante
+  cd_origem_uf          STRING        NOT NULL,  -- redundante
+
+  -- Datas e medidas (corretas, sem redundância)
   data_saida            TIMESTAMP     NOT NULL,
   data_entrega_prevista TIMESTAMP     NOT NULL,
   data_entrega_real     TIMESTAMP,
   distancia_km          DECIMAL(10,2) NOT NULL,  -- > 0
-  custo_combustivel     DECIMAL(12,2),  -- NULL ou >= 0
-  custo_pedagio         DECIMAL(12,2),  -- NULL ou >= 0
+  custo_combustivel     DECIMAL(12,2),           -- NULL ou >= 0
+  custo_pedagio         DECIMAL(12,2),           -- NULL ou >= 0
   valor_frete           DECIMAL(12,2) NOT NULL,  -- > 0
-  multa_atraso          DECIMAL(12,2),  -- NULL ou >= 0
-  status_entrega        STRING        NOT NULL  -- Valores: 'Pendente','Em Rota','Entregue','Ocorrência','Devolvido'
+  multa_atraso          DECIMAL(12,2),           -- NULL ou >= 0
+  status_entrega        STRING        NOT NULL,  -- Valores: 'Pendente','Em Rota','Entregue','Ocorrência','Devolvido'
+
+  -- ⭐ NOVO ATRIBUTO v2 — KPI de pontualidade
+  -- Derivado de minutos_atraso (calculado na aplicação/ETL).
+  -- Valores: 'Adiantado' | 'No Prazo' | 'Atraso Leve' | 'Atraso Moderado' | 'Atraso Crítico'
+  kpi_categoria_atraso  STRING        NOT NULL
 )
-USING DELTA;
+USING DELTA
+COMMENT 'Tabela ENTREGA em 2FN (proposital). Tem dependências transitivas — alunos devem normalizar para 3FN. Inclui kpi_categoria_atraso (NOVO v2).';
 
 
 -- ================================================================
@@ -337,6 +404,22 @@ CREATE TABLE IF NOT EXISTS lodlog_dw.dim_centro_distribuicao (
 )
 USING DELTA;
 
+-- ⭐ NOVA DIMENSÃO v2 — DIM_CATEGORIA_ATRASO (minidimensão Kimball)
+-- Categoria derivada de minutos_atraso.
+-- Minidimensão = boa prática para atributos de baixa cardinalidade
+-- usados em filtros/agrupamentos de BI. SCD Tipo 1 (estável).
+CREATE TABLE IF NOT EXISTS lodlog_dw.dim_categoria_atraso (
+  sk_categoria_atraso  INT     NOT NULL,  -- PK surrogate
+  categoria            STRING  NOT NULL,  -- 'Adiantado' | 'No Prazo' | 'Atraso Leve' | 'Atraso Moderado' | 'Atraso Crítico'
+  descricao            STRING  NOT NULL,  -- texto explicativo
+  limite_inferior_min  INT     NOT NULL,  -- ex. -9999, 0, 1, 61, 241
+  limite_superior_min  INT,              -- ex. 0, 0, 60, 240, NULL (=infinito)
+  sla_violado          BOOLEAN NOT NULL,  -- TRUE se a categoria viola SLA contratual
+  ordem                SMALLINT NOT NULL  -- 1..5 para ordenar gráficos
+)
+USING DELTA
+COMMENT 'Minidimensão (Kimball) para a categoria de atraso. SCD Tipo 1 (valores estáveis).';
+
 -- FATO_ENTREGAS — tabela central do Star Schema
 -- 1 linha por entrega realizada
 -- indicador_atraso = variável-alvo (target) do modelo de classificação
@@ -348,6 +431,7 @@ CREATE TABLE IF NOT EXISTS lodlog_dw.fato_entregas (
   sk_cd_origem         BIGINT  NOT NULL,  -- FK → dim_centro_distribuicao
   sk_veiculo           BIGINT  NOT NULL,  -- FK → dim_veiculo
   sk_motorista         BIGINT  NOT NULL,  -- FK → dim_motorista
+  sk_categoria_atraso  INT     NOT NULL,  -- FK → dim_categoria_atraso  ⭐ NOVO v2
   -- Chaves naturais degeneradas (sem dimensão própria, para rastreabilidade)
   entrega_id           BIGINT  NOT NULL,
   pedido_id            BIGINT  NOT NULL,
@@ -367,7 +451,34 @@ CREATE TABLE IF NOT EXISTS lodlog_dw.fato_entregas (
 -- Métricas derivadas
   minutos_atraso       INT     NOT NULL,  -- 0 = no prazo | >0 = quantos min atrasou
   indicador_atraso     SMALLINT NOT NULL,  -- 0 = pontual | 1 = atrasado  ← TARGET ML (valores: 0 ou 1)
-  temperatura_media_motor DECIMAL(6,2)  -- temperatura média do motor (°C)
+  temperatura_media_motor DECIMAL(6,2),   -- temperatura média do motor (°C)
+  -- ⭐ NOVO v2 — KPI replicado do operacional
+  kpi_categoria_atraso STRING  NOT NULL   -- 'Adiantado' | 'No Prazo' | 'Atraso Leve' | 'Atraso Moderado' | 'Atraso Crítico'
 )
 USING DELTA
-COMMENT 'Fato entregas — granularidade: 1 linha por entrega. indicador_atraso é o target do modelo de predição.';
+COMMENT 'Fato entregas — granularidade: 1 linha por entrega. indicador_atraso é o target do modelo de predição. v2 inclui sk_categoria_atraso (FK) e kpi_categoria_atraso (atributo replicado do op).';
+
+
+-- ================================================================
+-- CÉLULA 7 — ZORDER (otimização pós-carga)
+-- ================================================================
+-- NOTA: OPTIMIZE/ZORDER devem ser executados DEPOIS da carga.
+-- O script de seed Python faz isso automaticamente.
+-- ================================================================
+
+
+-- ================================================================
+-- CÉLULA 8 — Verificação final (execute após carga e ETL)
+-- ================================================================
+
+-- SHOW TABLES IN lodlog_op;
+-- SHOW TABLES IN lodlog_dw;
+
+-- SELECT 'lodlog_op.entrega' AS tabela, COUNT(*) AS linhas
+-- FROM lodlog_op.entrega
+-- WHERE kpi_categoria_atraso IS NOT NULL;
+-- -- Deve retornar ~50.000
+
+-- SELECT 'lodlog_dw.dim_categoria_atraso' AS tabela, COUNT(*) AS linhas
+-- FROM lodlog_dw.dim_categoria_atraso;
+-- -- Deve retornar 5
