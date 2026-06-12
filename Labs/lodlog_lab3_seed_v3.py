@@ -826,11 +826,11 @@ def _save_dw(df_pd, nome, tipo_cast=None):
 # ── dim_cat_atraso (minidimensão Kimball, SCD Tipo 1) ───────────
 dim_cat_atraso_dw = [
     {"sk_cat_atraso": 1, "categoria": "Adiantado",
-     "descricao": "Entrega concluída antes do prazo previsto",
+     "descricao": "Entregas concluída antes do prazo previsto",
      "limite_inferior_min": -99999, "limite_superior_min": -1,
      "sla_violado": False, "ordem": 1},
     {"sk_cat_atraso": 2, "categoria": "No Prazo",
-     "descricao": "Entrega concluída exatamente no prazo previsto",
+     "descricao": "Entregas concluída exatamente no prazo previsto",
      "limite_inferior_min": 0, "limite_superior_min": 0,
      "sla_violado": False, "ordem": 2},
     {"sk_cat_atraso": 3, "categoria": "Atraso Leve",

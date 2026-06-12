@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS lodlog_op.endereco_cliente (
   cep         STRING  NOT NULL,
   latitude    DECIMAL(9,6),
   longitude   DECIMAL(9,6),
-  tipo        STRING  NOT NULL,  -- Valores: 'Entrega','Cobrança','Principal'
+  tipo        STRING  NOT NULL,  -- Valores: 'Entregas','Cobrança','Principal'
   FOREIGN KEY (cliente_id) REFERENCES lodlog_op.cliente(cliente_id)
 )
 USING DELTA;
@@ -231,7 +231,7 @@ USING DELTA;
 
 
 -- ================================================================
--- CÉLULA 5 — Domínio OPERAÇÃO (Pedido / Entrega)
+-- CÉLULA 5 — Domínio OPERAÇÃO (Pedido / Entregas)
 -- ================================================================
 
 CREATE TABLE IF NOT EXISTS lodlog_op.pedido (
