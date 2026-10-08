@@ -190,48 +190,19 @@ CREATE TABLE IF NOT EXISTS lodlog_op.item_pedido (
 );
 
 -- ════════════════════════════════════════════════════════════════
--- TABELA ENTREGA — PROPOSITALMENTE EM 2FN
+-- TABELA ENTREGA — 3FN
 -- ════════════════════════════════════════════════════════════════
--- Esta tabela carrega DEPENDÊNCIAS TRANSITIVAS: dados de
--- cliente, veículo, motorista e CD estão duplicados aqui.
--- A PK é simples (entrega_id) — então está em 2FN
--- (1FN + sem dependências parciais), mas tem dependências
--- transitivas (X → Y → Z) que violam a 3FN.
---
--- Exercício LAB 2 — Atividade 2.2: decompor até 3FN.
+-- Dados de cliente, veículo, motorista e CD NÃO são repetidos
+-- aqui: ficam nas próprias tabelas e são acessados pelas FKs.
+-- Cliente e CD de origem vêm do pedido (entrega → pedido).
 -- ════════════════════════════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS lodlog_op.entrega (
-  -- PK + chaves estrangeiras (originais)
   entrega_id            BIGSERIAL     NOT NULL PRIMARY KEY,
   pedido_id             BIGINT        NOT NULL,  -- FK → pedido
   veiculo_id            BIGINT        NOT NULL,  -- FK → veiculo
   motorista_id          BIGINT        NOT NULL,  -- FK → motorista
 
-  -- ▓▓▓ DADOS REDUNDANTES DO CLIENTE (dependência transitiva) ▓▓▓
-  -- cliente_id determina estes campos. Devem ser removidos na 3FN.
-  cliente_id            BIGINT        NOT NULL,  -- FK → cliente
-  cliente_cnpj          TEXT          NOT NULL,  -- redundante
-  cliente_razao_social  TEXT          NOT NULL,  -- redundante
-  cliente_segmento      TEXT          NOT NULL,  -- redundante
-
-  -- ▓▓▓ DADOS REDUNDANTES DO VEÍCULO (dependência transitiva) ▓▓▓
-  veiculo_placa         TEXT          NOT NULL,  -- redundante
-  veiculo_modelo        TEXT          NOT NULL,  -- redundante
-  veiculo_fabricante    TEXT,                    -- redundante
-  veiculo_capacidade_kg DECIMAL(10,2) NOT NULL,  -- redundante
-
-  -- ▓▓▓ DADOS REDUNDANTES DO MOTORISTA (dependência transitiva) ▓▓▓
-  motorista_nome        TEXT          NOT NULL,  -- redundante
-  motorista_cnh         TEXT          NOT NULL,  -- redundante
-  motorista_categoria   TEXT          NOT NULL,  -- redundante
-
-  -- ▓▓▓ DADOS REDUNDANTES DO CD DE ORIGEM (dependência transitiva) ▓▓▓
-  cd_origem_id          BIGINT        NOT NULL,  -- FK → centro_distribuicao
-  cd_origem_codigo      TEXT          NOT NULL,  -- redundante
-  cd_origem_nome        TEXT          NOT NULL,  -- redundante
-  cd_origem_uf          TEXT          NOT NULL,  -- redundante
-
-  -- Datas e medidas (corretas, sem redundância)
+  -- Datas e medidas
   data_saida            TIMESTAMP     NOT NULL,
   data_entrega_prevista TIMESTAMP     NOT NULL,
   data_entrega_real     TIMESTAMP,
@@ -248,8 +219,6 @@ CREATE TABLE IF NOT EXISTS lodlog_op.entrega (
   kpi_cat_atraso        TEXT          NOT NULL,
   FOREIGN KEY (pedido_id) REFERENCES lodlog_op.pedido(pedido_id),
   FOREIGN KEY (veiculo_id) REFERENCES lodlog_op.veiculo(veiculo_id),
-  FOREIGN KEY (motorista_id) REFERENCES lodlog_op.motorista(motorista_id),
-  FOREIGN KEY (cliente_id) REFERENCES lodlog_op.cliente(cliente_id),
-  FOREIGN KEY (cd_origem_id) REFERENCES lodlog_op.centro_distribuicao(cd_id)
+  FOREIGN KEY (motorista_id) REFERENCES lodlog_op.motorista(motorista_id)
 );
-COMMENT ON TABLE lodlog_op.entrega IS 'Tabela ENTREGA em 2FN (proposital). Tem dependências transitivas — alunos devem normalizar para 3FN. Inclui kpi_cat_atraso (NOVO v2).';
+COMMENT ON TABLE lodlog_op.entrega IS 'Tabela ENTREGA em 3FN. Inclui kpi_cat_atraso (NOVO v2).';

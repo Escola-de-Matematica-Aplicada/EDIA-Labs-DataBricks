@@ -45,7 +45,7 @@
 # MAGIC | `movimentacao_estoque` | ~10K | Movimentações |
 # MAGIC | `pedido` | ~50K | Pedidos de entrega |
 # MAGIC | `item_pedido` | ~150K | Itens dos pedidos |
-# MAGIC | `entrega` | ~50K | **Entregas em 2FN (proposital)** com kpi_cat_atraso |
+# MAGIC | `entrega` | ~50K | Entregas (3FN) com kpi_cat_atraso |
 # MAGIC
 # MAGIC ### lodlog_dw (Data Warehouse - Star Schema):
 # MAGIC | Tabela | Fonte | Descrição |
@@ -595,11 +595,6 @@ for i in range(N_ENTREGAS):
     else:
         _kpi_cat = "Atraso Crítico"
 
-    _cli = df_cliente_op.iloc[sk_cliente - 1]
-    _vei = df_veiculo_op.iloc[sk_veiculo - 1]
-    _mot = df_motorista_op.iloc[sk_motorista - 1]
-    _cd  = df_centro_distribuicao_op.iloc[sk_cd - 1]
-
     pedidos_op.append({
         "pedido_id": pedido_id,
         "numero_pedido": f"PED-{datas_str[i][:4]}-{pedido_id:06d}",
@@ -618,21 +613,6 @@ for i in range(N_ENTREGAS):
         "pedido_id": pedido_id,
         "veiculo_id": sk_veiculo,
         "motorista_id": sk_motorista,
-        "cliente_id":            int(sk_cliente),
-        "cliente_cnpj":          _cli["cnpj"],
-        "cliente_razao_social":  _cli["razao_social"],
-        "cliente_segmento":      _cli["segmento"],
-        "veiculo_placa":         _vei["placa"],
-        "veiculo_modelo":        _vei["modelo"],
-        "veiculo_fabricante":    _vei["fabricante"],
-        "veiculo_capacidade_kg": float(_vei["capacidade_kg"]),
-        "motorista_nome":        _mot["nome_completo"],
-        "motorista_cnh":         _mot["cnh"],
-        "motorista_categoria":   _mot["categoria_cnh"],
-        "cd_origem_id":          int(sk_cd),
-        "cd_origem_codigo":      _cd["codigo"],
-        "cd_origem_nome":        _cd["nome"],
-        "cd_origem_uf":          _cd["uf"],
         "data_saida": horas_str[i],
         "data_entrega_prevista": f"{prazo_entrega_dt.strftime('%Y-%m-%d %H:%M:%S')}",
         "data_entrega_real": data_entrega_real_dt.strftime("%Y-%m-%d %H:%M:%S"),
@@ -782,8 +762,7 @@ _save_op(df_entrega_op, "entrega", {
     "custo_combustivel": DecimalType(12, 2),
     "custo_pedagio": DecimalType(12, 2),
     "valor_frete": DecimalType(12, 2),
-    "multa_atraso": DecimalType(12, 2),
-    "veiculo_capacidade_kg": DecimalType(10, 2)
+    "multa_atraso": DecimalType(12, 2)
 })
 _save_op(df_item_pedido_op, "item_pedido", {
     "peso_total_kg": DecimalType(10, 2)

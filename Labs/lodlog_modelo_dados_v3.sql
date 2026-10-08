@@ -12,11 +12,11 @@
 -- ════════════════════════════════════════════════════════════════
 -- O QUE MUDA NA v2 (junho/2026)
 -- ════════════════════════════════════════════════════════════════
--- 1) A tabela `lodlog_op.entrega` está propositalmente em 2FN.
---    Ela carrega colunas redundantes (dados de cliente, veículo,
---    motorista, CD) que são DEPENDÊNCIAS TRANSITIVAS — ou seja,
---    a tabela NÃO está em 3FN. Os alunos devem normalizar para
---    3FN como exercício do LAB 2 (Atividade 2.2).
+-- 1) A tabela `lodlog_op.entrega` está em 3FN (out/2026): só
+--    tem as FKs (pedido, veículo, motorista) e as medidas da
+--    entrega. Cliente e CD de origem são obtidos via `pedido`.
+--    (Até a v2 ela vinha propositalmente em 2FN para o exercício
+--    de normalização, que saiu do LAB 2.)
 --
 -- 2) Nova coluna `kpi_cat_atraso` na tabela `entrega`
 --    (operacional) e na `fato_entregas` (DW). Esse atributo é
@@ -265,48 +265,19 @@ CREATE TABLE IF NOT EXISTS lodlog_op.item_pedido (
 USING DELTA;
 
 -- ════════════════════════════════════════════════════════════════
--- TABELA ENTREGA — PROPOSITALMENTE EM 2FN
+-- TABELA ENTREGA — 3FN
 -- ════════════════════════════════════════════════════════════════
--- Esta tabela carrega DEPENDÊNCIAS TRANSITIVAS: dados de
--- cliente, veículo, motorista e CD estão duplicados aqui.
--- A PK é simples (entrega_id) — então está em 2FN
--- (1FN + sem dependências parciais), mas tem dependências
--- transitivas (X → Y → Z) que violam a 3FN.
---
--- Exercício LAB 2 — Atividade 2.2: decompor até 3FN.
+-- Dados de cliente, veículo, motorista e CD NÃO são repetidos
+-- aqui: ficam nas próprias tabelas e são acessados pelas FKs.
+-- Cliente e CD de origem vêm do pedido (entrega → pedido).
 -- ════════════════════════════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS lodlog_op.entrega (
-  -- PK + chaves estrangeiras (originais)
   entrega_id            BIGINT        NOT NULL PRIMARY KEY,  -- PK
   pedido_id             BIGINT        NOT NULL,  -- FK → pedido
   veiculo_id            BIGINT        NOT NULL,  -- FK → veiculo
   motorista_id          BIGINT        NOT NULL,  -- FK → motorista
 
-  -- ▓▓▓ DADOS REDUNDANTES DO CLIENTE (dependência transitiva) ▓▓▓
-  -- cliente_id determina estes campos. Devem ser removidos na 3FN.
-  cliente_id            BIGINT        NOT NULL,  -- FK → cliente
-  cliente_cnpj          STRING        NOT NULL,  -- redundante
-  cliente_razao_social  STRING        NOT NULL,  -- redundante
-  cliente_segmento      STRING        NOT NULL,  -- redundante
-
-  -- ▓▓▓ DADOS REDUNDANTES DO VEÍCULO (dependência transitiva) ▓▓▓
-  veiculo_placa         STRING        NOT NULL,  -- redundante
-  veiculo_modelo        STRING        NOT NULL,  -- redundante
-  veiculo_fabricante    STRING,                  -- redundante
-  veiculo_capacidade_kg DECIMAL(10,2) NOT NULL,  -- redundante
-
-  -- ▓▓▓ DADOS REDUNDANTES DO MOTORISTA (dependência transitiva) ▓▓▓
-  motorista_nome        STRING        NOT NULL,  -- redundante
-  motorista_cnh         STRING        NOT NULL,  -- redundante
-  motorista_categoria   STRING        NOT NULL,  -- redundante
-
-  -- ▓▓▓ DADOS REDUNDANTES DO CD DE ORIGEM (dependência transitiva) ▓▓▓
-  cd_origem_id          BIGINT        NOT NULL,  -- FK → centro_distribuicao
-  cd_origem_codigo      STRING        NOT NULL,  -- redundante
-  cd_origem_nome        STRING        NOT NULL,  -- redundante
-  cd_origem_uf          STRING        NOT NULL,  -- redundante
-
-  -- Datas e medidas (corretas, sem redundância)
+  -- Datas e medidas
   data_saida            TIMESTAMP     NOT NULL,
   data_entrega_prevista TIMESTAMP     NOT NULL,
   data_entrega_real     TIMESTAMP,
@@ -323,12 +294,10 @@ CREATE TABLE IF NOT EXISTS lodlog_op.entrega (
   kpi_cat_atraso  STRING        NOT NULL,
   FOREIGN KEY (pedido_id) REFERENCES lodlog_op.pedido(pedido_id),
   FOREIGN KEY (veiculo_id) REFERENCES lodlog_op.veiculo(veiculo_id),
-  FOREIGN KEY (motorista_id) REFERENCES lodlog_op.motorista(motorista_id),
-  FOREIGN KEY (cliente_id) REFERENCES lodlog_op.cliente(cliente_id),
-  FOREIGN KEY (cd_origem_id) REFERENCES lodlog_op.centro_distribuicao(cd_id)
+  FOREIGN KEY (motorista_id) REFERENCES lodlog_op.motorista(motorista_id)
 )
 USING DELTA
-COMMENT 'Tabela ENTREGA em 2FN (proposital). Tem dependências transitivas — alunos devem normalizar para 3FN. Inclui kpi_cat_atraso (NOVO v2).';
+COMMENT 'Tabela ENTREGA em 3FN. Inclui kpi_cat_atraso (NOVO v2).';
 
 
 -- ================================================================
