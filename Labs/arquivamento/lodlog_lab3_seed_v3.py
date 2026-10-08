@@ -527,14 +527,8 @@ atraso[_tipo == "adi"] = -rng.integers(5, 61,   (_tipo == "adi").sum())
 atraso[_tipo == "lat"] =  rng.integers(1, 121,  (_tipo == "lat").sum())
 atraso[_tipo == "mla"] =  rng.integers(121, 481,(_tipo == "mla").sum())
 
-# tempo_estimado_min replica o ETL da fato: CAST(distancia_km * 1.2 AS INT).
-# A conta é feita em inteiros (décimos de km) para truncar igual ao DECIMAL do Spark.
-tempo_estimado_min = (np.round(distancias * 10).astype(int) * 12) // 100
-# O adiantamento não pode ser maior que o próprio tempo de viagem (tempo real >= 1 min)
-atraso = np.maximum(atraso, 1 - tempo_estimado_min)
-# tempo_real = estimado + atraso: assim o minutos_atraso que o ETL recalcula a partir de
-# data_saida/data_entrega_real é exatamente o atraso gerado (e o kpi_cat_atraso bate).
-tempo_real_min     = tempo_estimado_min + atraso
+tempo_estimado_min = np.round(distancias * 1.2, 0).astype(int)
+tempo_real_min     = np.clip(tempo_estimado_min + rng.normal(0, 15, N_ENTREGAS).astype(int), 1, None)
 
 valor_frete  = np.round(distancias * 2.5 + pesos * 0.5 + rng.uniform(-100, 500, N_ENTREGAS), 2)
 custo_comb   = np.clip(np.round(distancias * 0.75 * rng.normal(1.0, 0.12, N_ENTREGAS), 2), 15.0, 3500.0)
